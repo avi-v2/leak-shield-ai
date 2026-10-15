@@ -6,9 +6,10 @@ As organizations integrate Large Language Models (LLMs) into production workflow
 1. **Accidental Credential & Data Exfiltration**: Developers and employees unwittingly paste API keys, credentials, customer PII, or internal tokens into prompt fields.
 2. **Adversarial Prompt Injections & Jailbreaks**: Malicious users manipulate prompt contexts to bypass system instructions, leak underlying prompts, or execute unauthorized operations.
 3. **Multimodal Metadata Leaks**: Image uploads transmitted to multimodal models often carry sensitive GPS coordinates, device identifiers, or embedded secret comments.
-4. **Model Hallucination of Sensitive Output**: Models can inadvertently echo cached secrets, private training data, or indirect prompt injections back to the user.
+4. **Document Data Leakage & Hidden Injections**: Uploaded PDF, Word, or spreadsheet attachments frequently contain embedded credentials, hidden metadata, or injected adversarial instructions.
+5. **Model Hallucination of Sensitive Output**: Models can inadvertently echo cached secrets, private training data, or indirect prompt injections back to the user.
 
-**Leak-Shield-AI** is a purpose-built security gateway designed to solve these vulnerabilities. Functioning as a high-performance reverse proxy, it analyzes both incoming prompts and outgoing completions, applying automated redaction, heuristic analysis, machine learning classification, and immutable server-side policies before data enters or exits the AI model layer.
+**Leak-Shield-AI** is a purpose-built security gateway and Security Operations Center (SOC) designed to solve these vulnerabilities. Functioning as a high-performance reverse proxy, it analyzes incoming prompts, uploaded files, and images, as well as outgoing model completions. It applies automated redaction, heuristic analysis, machine learning classification, structural file sanitization, and immutable server-side policies before data enters or exits the AI model layer.
 
 ---
 
@@ -21,11 +22,16 @@ Leak-Shield-AI is built on a decoupled, zero-trust architecture comprising three
 |                              1. PRESENTATION TIER                                 |
 |                                                                                   |
 |  React 18 Dashboard (Vite + TailwindCSS + Recharts)                               |
-|  - Real-time incident feed & threat visualizer                                    |
-|  - Interactive text & multimodal image scanning sandbox                           |
-|  - End-to-end LLM proxy playground                                                |
-|  - Policy configuration & immutable rule management                               |
-|  - Forensic audit logs with semantic search                                       |
+|  - AI Security Operations Center (SOC) with 8 Real-time KPI Cards                 |
+|  - Time-series security activity telemetry (1h, 24h, 7d, 30d, All Time)           |
+|  - Threat category breakdown (Findings count vs. Unique threatened scans)         |
+|  - Prompt injection intelligence (Normalized phrase frequency & detection methods)|
+|  - DLP analytics & verified sanitized preview samples (Zero raw secrets)          |
+|  - Policy verdict distribution (ALLOW / REDACT / BLOCK) & top justifications       |
+|  - File & image security telemetry (MIME breakdown, OCR stats, metadata leaks)    |
+|  - Filterable security event audit log with forensic modal inspection             |
+|  - Interactive text, document, and image scanner with live redaction              |
+|  - End-to-end LLM proxy playground & policy configuration                         |
 +-----------------------------------------------------------------------------------+
                                         |  REST / JSON (CORS Enabled)
                                         v
@@ -39,10 +45,12 @@ Leak-Shield-AI is built on a decoupled, zero-trust architecture comprising three
 |  |                                                                             |  |
 |  |  [A] DLP Regex & Algorithmic Engine (Keys, PII, Luhn-validated Cards)      |  |
 |  |  [B] Prompt Injection Detector (Heuristic Rules + TF-IDF Classifier)        |  |
-|  |  [C] Multimodal Image Scanner (EXIF GPS & Embedded Chunk Analyzer)          |  |
-|  |  [D] Central Policy Engine (Deterministic ALLOW / REDACT / BLOCK)           |  |
-|  |  [E] Output Completion Scanner (Post-Generation Response Filter)             |  |
-|  |  [F] Semantic Search Engine (Vector Token Ranking for Audit Logs)           |  |
+|  |  [C] Document Content Scanner & Redactor (PyMuPDF, python-docx, CSV, JSON)  |  |
+|  |  [D] Multimodal Image Scanner & Redactor (OCR Box Masking & EXIF Scrubber)  |  |
+|  |  [E] Central Policy Engine (Deterministic ALLOW / REDACT / BLOCK)           |  |
+|  |  [F] Output Completion Scanner (Post-Generation Response Filter)             |  |
+|  |  [G] Real-Time SOC Analytics & Aggregation Engine (dashboard_service.py)   |  |
+|  |  [H] Semantic Search Engine (Vector Token Ranking for Audit Logs)           |  |
 |  +-----------------------------------------------------------------------------+  |
 +-----------------------------------------------------------------------------------+
           |                                                       |
@@ -60,7 +68,7 @@ Leak-Shield-AI is built on a decoupled, zero-trust architecture comprising three
 
 ---
 
-## 3. End-to-End Request Lifecycle
+## 3. End-to-End Request Lifecycles
 
 ### Pipeline A: Text Prompt Scanning (`POST /scan`)
 1. **Input Validation**: Request prompt is validated via Pydantic schemas (length boundary check, non-empty validation).
@@ -73,26 +81,46 @@ Leak-Shield-AI is built on a decoupled, zero-trust architecture comprising three
    - Vectorized using TF-IDF and scored via the Logistic Regression model.
 5. **Policy Decision**: The Central Policy Engine synthesizes findings and issues an enforcement decision (`ALLOW`, `REDACT`, or `BLOCK`).
 6. **Audit Event Generation**: A structured incident report is persisted to SQLite with a sanitized preview (maximum 160 characters).
-7. **Response**: A JSON report is returned to the client detailing action, risk level, findings, and sanitized text.
+7. **Response**: A JSON report is returned detailing action, risk level, findings, and sanitized text.
 
 ### Pipeline B: Full Chat Proxying (`POST /chat`)
 1. **Pre-Flight Input Scan**: Executes Pipeline A.
-2. **Early Termination on Block**: If the policy evaluates to `BLOCK`, the request is halted immediately. No network request is initiated to the upstream LLM.
+2. **Early Termination on Block**: If evaluated to `BLOCK`, the request is halted immediately. No network request is initiated to the upstream LLM.
 3. **Upstream Forwarding**: If evaluated to `ALLOW` or `REDACT`, the sanitized prompt is forwarded to Ollama via an asynchronous HTTPX client with strict timeout controls.
 4. **Post-Flight Output Scan**: The LLM's generated response text is inspected for any inadvertent sensitive data leakage before leaving the gateway.
 5. **Final Audit & Delivery**: Audit records capture prompt findings, output findings, total end-to-end latency, and upstream model metadata.
 
-### Pipeline C: Image Privacy & Exfiltration Scan (`POST /scan/image`)
-1. **Base64 Ingestion**: Base64 data or Data URIs are decoded into raw binary buffers.
-2. **Format & Integrity Check**: Verified using Pillow (`PIL.Image`).
-3. **EXIF & GPS Parsing**:
-   - Decodes standard EXIF tags (Make, Model, Software, Serial Number).
-   - Extracts GPS IFD tags (Latitude, Longitude, Altitude, Timestamp) and converts degrees/minutes/seconds rational tuples to standard decimal coordinates.
-4. **Steganography & Comment Extraction**:
-   - Extracts PNG chunks (`tEXt`, `zTXt`, `iTXt`).
-   - Scans chunk values and JPEG user comments using DLP credential patterns.
-5. **Sanitization**: Strips all metadata markers, re-encoding a pristine image buffer.
-6. **Policy Enforcement & Storage**: Audit event is generated with image dimensions and format; returned with sanitized base64 output.
+### Pipeline C: Document Content Redaction (`POST /redact/file`)
+1. **Format Validation**: Validates file magic bytes and extensions (`.pdf`, `.docx`, `.csv`, `.json`, `.txt`, `.md`).
+2. **Adversarial Injection Check**: Evaluates full extracted document text for prompt injections. **Prompt injections trigger a mandatory BLOCK** because redacting an API key does not neutralize malicious instructions.
+3. **Structural Content Redaction**:
+   - **PDF**: Uses PyMuPDF (`add_redact_annot` and `apply_redactions`) to genuinely purge sensitive text characters from underlying PDF content streams. No superficial black rectangles.
+   - **DOCX**: Traverses paragraphs, table cells, headers, and footers, replacing sensitive tokens in place.
+   - **CSV**: Performs cell-by-cell redaction while preserving row/column CSV delimiters.
+   - **JSON**: Recursively traverses nested keys and arrays, masking sensitive string values while maintaining valid JSON structure.
+   - **TXT / MD**: Applies deterministic right-to-left UTF-8 text masking.
+4. **Multi-Stage Verification**:
+   - Reopens the sanitized file to verify structural integrity.
+   - Re-scans the reopened document to ensure zero residual sensitive data patterns remain.
+5. **Verified Download Token**: Issues a cryptographic single-use file ID for secure client download via `GET /redact/download/{file_id}`.
+
+### Pipeline D: Image Privacy & OCR Redaction (`POST /redact/image`)
+1. **Base64 Ingestion**: Base64 or multipart image data is decoded into memory.
+2. **EXIF & Metadata Stripping**: Strips EXIF metadata, GPS latitude/longitude coordinates, and embedded comments.
+3. **OCR Text Recognition**: Reuses the OCR pipeline to detect text and capture exact bounding boxes $(x, y, w, h)$.
+4. **Sensitive Span Mapping**: Identifies sensitive tokens (credentials, phone numbers, PII) in the OCR text and maps them to coordinate bounding boxes.
+5. **Opaque Visual Masking**: Draws opaque rectangular masks over the exact bounding boxes of detected sensitive values.
+6. **Verification & Delivery**: Re-opens and verifies the sanitized image, returning sanitized Base64 output.
+
+### Pipeline E: SOC Telemetry & Real-Time Analytics (`GET /metrics/*`)
+1. **Database-Driven Computation**: Queries SQLite directly; never returns fabricated metrics or demo placeholders.
+2. **Time-Range Filtering**: Supports `1h`, `24h`, `7d`, `30d`, and `all`, translating into ISO 8601 UTC cutoff queries.
+3. **Documented Denominators**: Calculates:
+   $$\text{Threat Rate (\%)} = \frac{\text{Threatened Scans}}{\text{Total Scans}} \times 100$$
+   $$\text{Block Rate (\%)} = \frac{\text{Blocked Requests}}{\text{Total Scans}} \times 100$$
+   Handles zero denominators safely without division-by-zero exceptions.
+4. **Category Normalization**: Unifies detection rules into 11 canonical cybersecurity categories, tracking both raw findings and unique affected scans.
+5. **Privacy Guarantee**: All returned previews and audit snippets are strictly sanitized. Raw secrets and credentials never enter telemetry responses.
 
 ---
 
@@ -102,165 +130,50 @@ Leak-Shield-AI is built on a decoupled, zero-trust architecture comprising three
 
 The DLP engine utilizes a combination of pattern matching, structural verification, and algorithmic integrity checks:
 
-| Rule Identifier | Detection Strategy | Validation Mechanism | Replacement Token |
+| Rule Identifier | Category | Validation Mechanism | Replacement Token |
 |---|---|---|---|
-| `RULE_OPENAI_API_KEY` | Regex: `\b(sk-[a-zA-Z0-9]{20,T3BlbkFJ[a-zA-Z0-9]{20,}\|sk-proj-[a-zA-Z0-9_-]{40,})\b` | Prefix & Length | `[REDACTED_API_KEY]` |
-| `RULE_AWS_ACCESS_KEY` | Regex: `\b((?:AKIA\|ABIA\|ACCA\|ASIA)[0-9A-Z]{16})\b` | Standard AWS IAM prefix | `[REDACTED_AWS_KEY]` |
-| `RULE_GITHUB_TOKEN` | Regex: `\b(gh[pousr]_[A-Za-z0-9_]{36,255})\b` | GitHub token prefix format | `[REDACTED_GITHUB_TOKEN]` |
-| `RULE_SLACK_TOKEN` | Regex: `\b(xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,32})\b` | Slack workspace token format | `[REDACTED_SLACK_TOKEN]` |
-| `RULE_CREDIT_CARD` | Regex: `\b(?:4[0-9]{12}(?:[0-9]{3})?\|5[1-5][0-9]{14}\|3[47][0-9]{13})\b` | **Luhn Checksum Algorithm** | `[REDACTED_CARD]` |
-| `RULE_US_SSN` | Regex: `\b(?!000\|666\|9\d{2})(\d{3})[- ]?(?!00)(\d{2})[- ]?(?!0000)(\d{4})\b` | Area/Group code validation | `[REDACTED_SSN]` |
-| `RULE_INDIAN_PAN` | Regex: `\b([A-Z]{5}[0-9]{4}[A-Z])\b` | Format verification | `[REDACTED_PAN]` |
-| `RULE_INDIAN_AADHAAR`| Regex: `\b([2-9]{1}[0-9]{3}[ -]?[0-9]{4}[ -]?[0-9]{4})\b` | Non-zero starting digit format | `[REDACTED_AADHAAR]` |
-| `RULE_PASSWORD` | Contextual: `(?:password\|passwd\|pwd)\s*(?:=|:|is)\s*['"]?([^\s'"]{6,})` | Assignment pattern matching | `[REDACTED_PASSWORD]` |
-| `RULE_EMAIL_ADDRESS`| RFC 5322 Standard Email Regex | Standard host syntax | `[REDACTED_EMAIL]` |
-| `RULE_PHONE_NUMBER` | E.164 & International Format Regex | Digit grouping verification | `[REDACTED_PHONE]` |
-
-#### Deterministic Right-to-Left Replacement
-When multiple sensitive patterns exist in a single document, naive sequential replacement causes string offset drift (a string modification at index 10 invalidates all matches recorded at index 50+). Leak-Shield-AI solves this by sorting all identified findings by their starting index in descending order:
-```python
-findings.sort(key=lambda f: f.start, reverse=True)
-for finding in findings:
-    redacted = redacted[:finding.start] + finding.replacement + redacted[finding.end:]
-```
-This guarantees mathematical immutability for remaining match boundaries.
+| `RULE_OPENAI_API_KEY` | Credential Exfiltration | Prefix & Length validation | `[REDACTED_API_KEY]` |
+| `RULE_AWS_ACCESS_KEY` | Credential Exfiltration | AWS IAM prefix (`AKIA`, `ASIA`, etc.) | `[REDACTED_AWS_KEY]` |
+| `RULE_AWS_SECRET_KEY` | Credential Exfiltration | High-entropy 40-character base64 secret | `[REDACTED_AWS_SECRET]` |
+| `RULE_GITHUB_TOKEN` | Credential Exfiltration | Prefix validation (`ghp_`, `gho_`, etc.) | `[REDACTED_GITHUB_TOKEN]` |
+| `RULE_SLACK_TOKEN` | Credential Exfiltration | Workspace token structure | `[REDACTED_SLACK_TOKEN]` |
+| `RULE_CREDIT_CARD` | Financial Data | **Luhn Checksum Algorithm** | `[REDACTED_CARD]` |
+| `RULE_US_SSN` | Personal Identifiable Info | Area/Group code syntax validation | `[REDACTED_SSN]` |
+| `RULE_INDIAN_PAN` | Indian Identifiers | Structural pattern (`[A-Z]{5}[0-9]{4}[A-Z]`) | `[REDACTED_PAN]` |
+| `RULE_INDIAN_AADHAAR`| Indian Identifiers | 12-digit non-zero leading pattern | `[REDACTED_AADHAAR]` |
+| `RULE_PASSWORD` | Credential Exfiltration | Assignment pattern (`password = ...`) | `[REDACTED_PASSWORD]` |
+| `RULE_EMAIL_ADDRESS`| Personal Identifiable Info | RFC 5322 Standard Email Regex | `[REDACTED_EMAIL]` |
+| `RULE_PHONE_NUMBER` | Personal Identifiable Info | E.164 & International Format Regex | `[REDACTED_PHONE]` |
 
 ---
 
-### 4.2 Prompt Injection & Jailbreak Defense (`app/security/injection_detector.py` & `classifier.py`)
+## 5. Automated Test Suite (71 Tests Passing)
 
-Adversarial prompts employ semantic camouflage, instruction overrides, or roleplay personas (DAN). Leak-Shield-AI uses a two-stage hybrid detector:
+The backend features 71 automated tests in Pytest validating real security enforcement:
 
-#### Stage 1: Rule-Based Heuristic Signatures
-Immediate high-confidence triggers catch known jailbreak framing:
-- **Instruction Overrides**: Patterns like `ignore (?:all )?(?:previous|prior) (?:instructions|rules|prompts)`, `disregard all earlier directives`.
-- **System Delimiters**: Artificial framing such as `--- BEGIN SYSTEM OVERRIDE ---`, `[SYSTEM PROMPT]`, `<<SYS>>`.
-- **Persona Jailbreaks**: "Do Anything Now" (DAN), "Developer Mode enabled", "unfiltered AI assistant with no moral guidelines".
-- **Privileged Leak Commands**: `print your initial system prompt`, `reveal instructions above`.
-
-#### Stage 2: Machine Learning TF-IDF Classifier
-- **Feature Extraction**: Sub-word and word-level n-grams (1 to 2 n-grams) capturing structural syntax of adversarial attacks.
-- **Model Architecture**: Logistic Regression with L2 regularization tuned for high recall.
-- **Serialization Safety**: Serialized as standard JSON containing dictionary weights, vocabulary maps, and intercept values. This completely eliminates the arbitrary remote code execution (RCE) vulnerabilities inherent in Python's standard `pickle` serialization.
-
----
-
-### 4.3 Multimodal Image Security Engine (`app/security/image_scanner.py`)
-
-Modern multimodal LLMs accept images directly into the prompt context. Leak-Shield-AI prevents two primary image-based attack vectors:
-1. **EXIF Geolocation Leakage**: Mobile devices embed precise GPS coordinates into photograph headers. The engine parses the `GPSInfo` tag block:
-   $$\text{Decimal Degrees} = \text{Degrees} + \frac{\text{Minutes}}{60} + \frac{\text{Seconds}}{3600}$$
-   If GPS metadata is detected, a high-severity finding is generated and the user is provided with latitude, longitude, and an automated sanitized image.
-2. **Steganographic Chunk Exfiltration**: Malicious payloads or leaked API keys can be stored inside non-visual image chunks (such as PNG `tEXt` or JPEG `COM` chunks). The engine extracts all raw string values from these metadata blocks and pipes them through the DLP engine.
-
----
-
-### 4.4 Central Policy Engine (`app/security/policy_engine.py`)
-
-The policy engine operates as a deterministic decision matrix mapping detected threat categories and risk scores to enforcement actions:
-
-- **`BLOCK`**: The request is completely intercepted and rejected with an explanation.
-- **`REDACT`**: The prompt is allowed to proceed to the upstream LLM, but all sensitive values are replaced with deterministic placeholder tokens.
-- **`ALLOW`**: The prompt contains zero policy violations and passes unaltered.
-
-#### Immutable Invariants
-To prevent misconfiguration or client-side tampering, the policy engine enforces immutable core constraints:
-- `detectApiKeys`: Mandatory (`True`). Cannot be disabled via API or UI.
-- `detectPasswords`: Mandatory (`True`). Cannot be disabled via API or UI.
-- Any API request attempting to disable mandatory rules returns an immediate HTTP `400 Bad Request`.
-
----
-
-### 4.5 Semantic Audit Search Engine (`app/security/semantic_search.py`)
-
-To allow security analysts to search through thousands of historical security logs without requiring heavy external vector databases, Leak-Shield-AI implements an in-memory lexical-semantic search system:
-1. **Tokenization & Normalization**: Strips punctuation, transforms text to lowercase, and filters common stop words.
-2. **Security Synonym Expansion**: Queries are expanded using a cybersecurity domain thesaurus (e.g., query "api key" expands to include "credential", "secret", "token", "sk-proj").
-3. **TF-IDF Vector Space Scoring**: Computes cosine similarity between the expanded query vector and pre-indexed event summaries.
-4. **Ranked Output**: Returns top-matching audit events sorted by relevance score.
-
----
-
-## 5. Database Schema & Persistence
-
-All security events and system policies are persisted in a local SQLite database (`backend/sentinel.db`) with Write-Ahead Logging (WAL) enabled for concurrency.
-
-### Table: `events`
-Stores audit records for every inspected transaction:
-```sql
-CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    request_id TEXT NOT NULL UNIQUE,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    threat_category TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    source TEXT NOT NULL,
-    action_taken TEXT NOT NULL,
-    status TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    matched_rules TEXT,
-    latency_ms INTEGER DEFAULT 0,
-    sanitized_preview TEXT,
-    is_output_scan BOOLEAN DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
-CREATE INDEX IF NOT EXISTS idx_events_action ON events(action_taken);
-CREATE INDEX IF NOT EXISTS idx_events_category ON events(threat_category);
+```powershell
+.\backend\.venv\Scripts\pytest.exe -v
 ```
 
-### Table: `policies`
-Stores configuration parameters for detection rules:
-```sql
-CREATE TABLE IF NOT EXISTS policies (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    description TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Zero-Secret Privacy Guarantee
-The database column `sanitized_preview` stores at most 160 characters of the prompt **after** all redaction tokens have been applied. Raw API keys, cleartext passwords, and original unredacted text are discarded from memory immediately after inspection and are never written to disk.
-
----
-
-## 6. Frontend Dashboard Architecture
-
-The frontend is an enterprise Cyber Operations dashboard built using React 18, Tailwind CSS, Lucide icons, and Recharts.
-
-### Key Pages:
-- **Security Overview (`Overview.jsx`)**: Real-time KPI cards (Inspected, Allowed, Blocked, PII leaks, Injections), hourly traffic area chart, threat category pie chart, and recent violations table.
-- **Live Threat Monitor (`ThreatMonitor.jsx`)**: Real-time event stream with interactive filtering by severity, enforcement action, and category.
-- **Prompt Security Scanner (`PromptScanner.jsx`)**: Interactive dual-tab sandbox for testing text prompts and multimodal image files with immediate visual feedback on matched rules and redacted previews.
-- **Request Playground (`Playground.jsx`)**: Live interactive chat interface proxying sanitized requests directly to an active Ollama instance with round-trip latency tracking.
-- **Security Policies (`Policies.jsx`)**: Interactive management of DLP sensitivity levels, prompt injection thresholds, and enforcement actions.
-- **Audit Logs (`AuditLogs.jsx`)**: Full forensic log viewer featuring semantic search, CSV export, and selective log purging.
-- **System Settings (`Settings.jsx`)**: Diagnostic endpoint testing, backend connection ping, and theme controls.
+### Test Distribution:
+- **`test_dashboard_analytics.py` (3 tests)**: Empty database zero-denominator handling, full metrics accuracy on populated database, time range filtering, prompt injection keyword extraction, DLP safe previews, and parameterized event filters.
+- **`test_redaction.py` (13 tests)**: Plaintext redaction, CSV cell redaction, JSON object redaction, DOCX paragraph and table tree scrubbing, PyMuPDF PDF stream purging, OCR bounding box image redaction, EXIF metadata stripping, prompt injection mandatory BLOCK enforcement, and download token verification.
+- **`test_file_and_image_content_scanner.py` (18 tests)**: Document parsing across PDF, DOCX, CSV, JSON, TXT, MD; image OCR extraction; and file signature checks.
+- **`test_sensitive_data.py` (6 tests)**: Regex accuracy, Luhn algorithm card verification, right-to-left redaction, and Indian identifiers (PAN/Aadhaar).
+- **`test_injection.py` (4 tests)**: Adversarial prompts, DAN personas, system delimiter overrides, and TF-IDF classifier inference.
+- **`test_policy_engine.py` (4 tests)**: Central policy matrix evaluation, threshold overrides, and remediation actions.
+- **`test_policies_api.py` (4 tests)**: Policy configuration API and mandatory credential rule enforcement.
+- **`test_chat_gateway.py` (5 tests)**: Proxy request handling, early termination on block, and output completion scanning.
+- **`test_audit_and_metrics.py` (4 tests)**: SQLite WAL audit logging, zero-secret persistence, and operational metrics.
+- **`test_semantic_search.py` (3 tests)**: Vector similarity scoring, keyword expansion, and token cosine similarity.
+- **`test_image_scanner.py` (6 tests)**: EXIF GPS coordinates, camera serial numbers, and metadata sanitization.
+- **`test_health.py` (1 test)**: Diagnostics and component readiness.
 
 ---
 
-## 7. Automated Test Suite (37 Scenarios)
+## 6. Production Security Guarantees
 
-The test suite validates every critical security behavior under pytest:
-
-| Category | File | Count | Verified Scenarios |
-|---|---|---|---|
-| **Sensitive Data** | `test_sensitive_data.py` | 6 | API keys, passwords, PAN/Aadhaar, credit cards, emails, benign clean text |
-| **Prompt Injection**| `test_injection.py` | 4 | Instruction overrides, DAN jailbreaks, benign questions, model offline fallback |
-| **Policy Engine** | `test_policy_engine.py` | 4 | Mandatory credential blocking, PII redaction, PII blocking, clean request flow |
-| **Policies API** | `test_policies_api.py` | 4 | Policy retrieval, valid update, rejection of mandatory rule modification, invalid choices |
-| **Chat Gateway** | `test_chat_gateway.py` | 5 | Blocked prompt isolation, upstream 503 handling, output redaction, standalone scan, input validation |
-| **Image Scanner** | `test_image_scanner.py` | 6 | Clean images, embedded secret detection, GPS leak extraction & sanitization, corrupt files, API upload |
-| **Audit & Metrics** | `test_audit_and_metrics.py` | 4 | Fresh database metrics, zero raw secret persistence, SQL aggregation accuracy, audit clearing |
-| **Semantic Search** | `test_semantic_search.py` | 3 | Tokenization & synonym expansion, cosine vector ranking, `/events/search` endpoint |
-| **Health Check** | `test_health.py` | 1 | Live system readiness reporting |
-| **Total** | | **37** | **All 37 passing** |
-
----
-
-## 8. Deployment & Operational Best Practices
-
-1. **Reverse Proxy Configuration**: Deploy behind an enterprise reverse proxy (e.g., Nginx or Cloudflare) configured for SSL/TLS termination and DDoS mitigation.
-2. **Environment Isolation**: Run the Python backend inside an isolated container with read-only access to root filesystems and write access restricted strictly to the SQLite database path.
-3. **Database Maintenance**: SQLite with WAL mode handles high concurrency effectively. For large-scale distributed deployments, the SQLite persistence layer can be replaced with PostgreSQL with zero changes to schema definitions.
-4. **Upstream Model Scaling**: In enterprise environments, point `OLLAMA_BASE_URL` to an internal vLLM, TensorRT-LLM, or private cloud LLM gateway cluster.
+1. **Zero Secret Persistence**: Raw secrets, plaintext passwords, and full payment cards are never stored in the database or returned in telemetry responses. Previews are truncated to 160 characters and masked.
+2. **Immutable Protection**: Mandated security controls (API key and password detection) cannot be disabled via API or UI policies.
+3. **True Redaction**: Redaction physically purges sensitive byte streams and covers OCR bounding boxes, guaranteeing that data cannot be recovered by inspecting underlying file objects.
+4. **Prompt Injection Independence**: Adversarial prompt injections in files or images trigger an immediate BLOCK, ensuring compromised files are never routed to an LLM under the guise of being "sanitized."
