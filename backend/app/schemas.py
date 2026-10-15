@@ -151,6 +151,31 @@ class ImageScanResponse(BaseModel):
     finding_count: int = 0
     scanned_components: List[str] = []
 
+class RedactImageRequest(BaseModel):
+    """Payload for POST /redact/image (JSON base64)."""
+    image_base64: str = Field(..., description="Base64 encoded image data or data URI")
+    filename: Optional[str] = Field("uploaded_image.png", description="Original image filename")
+
+class RedactResponse(BaseModel):
+    """Structured response returned by document and image redaction endpoints."""
+    request_id: str
+    action: Literal["ALLOW", "REDACT", "BLOCK"]
+    risk_level: Literal["low", "medium", "high", "critical"]
+    filename: str
+    sanitized_filename: str
+    redacted_file_id: Optional[str] = None
+    download_url: Optional[str] = None
+    can_download: bool = False
+    redaction_count: int = 0
+    affected_categories: List[str] = []
+    verification_status: Literal["VERIFIED", "PARTIAL", "FAILED"]
+    verification_details: Dict[str, Any] = {}
+    warnings: List[str] = []
+    sanitized_preview: Optional[str] = None
+    sanitized_image_base64: Optional[str] = None
+    findings: List[Finding] = []
+    processed_at: str
+
 class MetricsResponse(BaseModel):
     """Response schema for GET /metrics."""
     total_requests: int

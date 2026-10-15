@@ -94,8 +94,8 @@ def card_validator(val: str, full_text: str, start: int, end: int) -> bool:
     # If standard Luhn check passes
     if luhn_checksum_valid(clean):
         return True
-    # If explicitly prefixed with card context (e.g. Card: 4532-...)
-    context_window = full_text[max(0, start - 20):start].lower()
+    # If explicitly prefixed or nearby card context (e.g. Card: 4532-... or CSV header card_number)
+    context_window = full_text[max(0, start - 50):min(len(full_text), end + 50)].lower()
     if any(k in context_window for k in ["card", "visa", "mastercard", "amex", "credit", "debit"]):
         return True
     return False
@@ -286,7 +286,7 @@ SENSITIVE_RULES: List[SensitiveDataRule] = [
         category="Personal Identifiable Info",
         description="Telephone or mobile phone number detected.",
         severity="medium",
-        pattern=re.compile(r'(?:\+?(\d{1,3})[-.\s]?)?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})\b|\b(?:\+91[-.\s]?)?[6-9]\d{9}\b'),
+        pattern=re.compile(r'(?<!\d)(?:(?:\+?(\d{1,3})[-.\s]?)?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})\b|(?:\+91[-.\s]?)?[6-9]\d{9}\b)'),
         replacement="[REDACTED_PHONE]",
         preview_mask="Phone number [***-***-****]"
     ),

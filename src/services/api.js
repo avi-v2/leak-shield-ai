@@ -257,3 +257,58 @@ export async function scanDocumentFile(file) {
     body: formData,
   }, 30000);
 }
+
+/**
+ * POST /redact/file
+ * Redact sensitive data from document file (.pdf, .docx, .csv, .json, .txt, .md)
+ * @param {File} file - Browser File object
+ */
+export async function redactDocumentFile(file) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
+  return await apiRequest('/redact/file', {
+    method: 'POST',
+    body: formData,
+  }, 30000);
+}
+
+/**
+ * POST /redact/image
+ * Redact visible OCR sensitive text and strip EXIF metadata from base64 image
+ * @param {string} imageBase64 - Base64 or Data URI string
+ * @param {string} filename - Filename identifier
+ */
+export async function redactImage(imageBase64, filename = 'image.png') {
+  return await apiRequest('/redact/image', {
+    method: 'POST',
+    body: {
+      image_base64: imageBase64,
+      filename,
+    },
+  }, 30000);
+}
+
+/**
+ * POST /redact/image/upload
+ * Redact image via multipart/form-data upload
+ * @param {File} file - Browser File object
+ */
+export async function redactImageFile(file) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
+  return await apiRequest('/redact/image/upload', {
+    method: 'POST',
+    body: formData,
+  }, 30000);
+}
+
+/**
+ * Get direct verified download URL for a redacted file
+ * @param {string} fileId - The secure red_<token> file ID
+ */
+export function getRedactedDownloadUrl(fileId) {
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}/redact/download/${fileId}`;
+}

@@ -28,7 +28,15 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useGateway } from '../context/GatewayContext';
-import { scanPrompt, scanImage, scanDocumentFile } from '../services/api';
+import {
+  scanPrompt,
+  scanImage,
+  scanDocumentFile,
+  redactDocumentFile,
+  redactImage,
+  redactImageFile,
+  getRedactedDownloadUrl
+} from '../services/api';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 
@@ -146,6 +154,16 @@ export function PromptScanner() {
   const [isImageScanning, setIsImageScanning] = useState(false);
   const [imageResult, setImageResult] = useState(null);
   const [imageError, setImageError] = useState(null);
+
+  // Document Redaction State
+  const [isDocumentRedacting, setIsDocumentRedacting] = useState(false);
+  const [documentRedactResult, setDocumentRedactResult] = useState(null);
+  const [documentRedactError, setDocumentRedactError] = useState(null);
+
+  // Image Redaction State
+  const [isImageRedacting, setIsImageRedacting] = useState(false);
+  const [imageRedactResult, setImageRedactResult] = useState(null);
+  const [imageRedactError, setImageRedactError] = useState(null);
 
   // 1. Text Prompt Scan
   const handleScanText = async () => {
@@ -316,6 +334,118 @@ export function PromptScanner() {
     }
   };
 
+  // 4. Document File Redaction Pipeline
+  const handleRedactDocument = async () => {
+    if (!selectedFile) {
+      addToast({
+        title: 'No Document Selected',
+        message: 'Please select or upload a document file to redact.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    if (connectionStatus !== 'connected') {
+      const errMsg = `Backend gateway is offline at ${backendUrl}. Active FastAPI server required at POST /redact/file.`;
+      setDocumentRedactError({ message: errMsg });
+      setDocumentRedactResult(null);
+      addToast({
+        title: 'Gateway Offline',
+        message: errMsg,
+        type: 'error',
+      });
+      return;
+    }
+
+    setIsDocumentRedacting(true);
+    setDocumentRedactError(null);
+
+    try {
+      const response = await redactDocumentFile(selectedFile.rawFile);
+      if (response.success && response.data) {
+        setDocumentRedactResult(response.data);
+        loadEvents();
+        loadMetrics();
+
+        addToast({
+          title: 'Document Redaction Finished',
+          message: `Verdict: ${response.data.action} | Status: ${response.data.verification_status} | Redacted: ${response.data.redaction_count}`,
+          type: response.data.can_download ? 'success' : response.data.action === 'BLOCK' ? 'error' : 'warning',
+        });
+      } else {
+        throw new Error('Unexpected response schema from redaction gateway.');
+      }
+    } catch (err) {
+      setDocumentRedactError({
+        message: err.message || 'Failed to redact document file through security gateway.',
+      });
+      setDocumentRedactResult(null);
+      addToast({
+        title: 'Document Redaction Failed',
+        message: err.message || 'Error processing document redaction.',
+        type: 'error',
+      });
+    } finally {
+      setIsDocumentRedacting(false);
+    }
+  };
+
+  // 5. Image & OCR Redaction Pipeline
+  const handleRedactImage = async () => {
+    if (!selectedImage?.dataUrl) {
+      addToast({
+        title: 'No Image Selected',
+        message: 'Please choose or upload an image to redact.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    if (connectionStatus !== 'connected') {
+      const errMsg = `Backend gateway is offline at ${backendUrl}. Active FastAPI server required at POST /redact/image.`;
+      setImageRedactError({ message: errMsg });
+      setImageRedactResult(null);
+      addToast({
+        title: 'Gateway Offline',
+        message: errMsg,
+        type: 'error',
+      });
+      return;
+    }
+
+    setIsImageRedacting(true);
+    setImageRedactError(null);
+
+    try {
+      const response = await redactImage(selectedImage.dataUrl, selectedImage.filename);
+      if (response.success && response.data) {
+        setImageRedactResult(response.data);
+        loadEvents();
+        loadMetrics();
+
+        addToast({
+          title: 'Image Redaction Finished',
+          message: `Verdict: ${response.data.action} | Status: ${response.data.verification_status} | Masked: ${response.data.redaction_count}`,
+          type: response.data.can_download ? 'success' : response.data.action === 'BLOCK' ? 'error' : 'warning',
+        });
+      } else {
+        throw new Error('Unexpected response schema from redaction gateway.');
+      }
+    } catch (err) {
+      setImageRedactError({
+        message: err.message || 'Failed to redact image through security gateway.',
+      });
+      setImageRedactResult(null);
+      addToast({
+        title: 'Image Redaction Failed',
+        message: err.message || 'Error processing image redaction.',
+        type: 'error',
+      });
+    } finally {
+      setIsImageRedacting(false);
+    }
+  };
+
   // File Upload Handlers
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
@@ -329,6 +459,8 @@ export function PromptScanner() {
     });
     setFileResult(null);
     setFileError(null);
+    setDocumentRedactResult(null);
+    setDocumentRedactError(null);
   };
 
   const handleSelectSampleDoc = (sample) => {
@@ -342,6 +474,8 @@ export function PromptScanner() {
     });
     setFileResult(null);
     setFileError(null);
+    setDocumentRedactResult(null);
+    setDocumentRedactError(null);
   };
 
   const handleImageUpload = (e) => {
@@ -358,6 +492,8 @@ export function PromptScanner() {
       });
       setImageResult(null);
       setImageError(null);
+      setImageRedactResult(null);
+      setImageRedactError(null);
     };
     reader.readAsDataURL(file);
   };
@@ -747,28 +883,54 @@ export function PromptScanner() {
                     setSelectedFile(null);
                     setFileResult(null);
                     setFileError(null);
+                    setDocumentRedactResult(null);
+                    setDocumentRedactError(null);
                   }}
                   className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
                 >
                   Clear Selection
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleScanDocument}
-                  disabled={isFileScanning || !selectedFile}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(34,211,238,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isFileScanning ? 'animate-spin' : ''}`} />
-                  {isFileScanning ? 'Parsing Document Content...' : 'Inspect Document'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleScanDocument}
+                    disabled={isFileScanning || isDocumentRedacting || !selectedFile}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isFileScanning ? 'animate-spin' : ''}`} />
+                    {isFileScanning ? 'Scanning...' : 'Inspect'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRedactDocument}
+                    disabled={isDocumentRedacting || isFileScanning || !selectedFile}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(34,211,238,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Lock className={`w-3.5 h-3.5 ${isDocumentRedacting ? 'animate-spin' : ''}`} />
+                    {isDocumentRedacting ? 'Redacting...' : 'Redact & Sanitize'}
+                  </button>
+                </div>
               </div>
             </Card>
           </div>
 
-          {/* Right Column: Document Results */}
+          {/* Right Column: Document Results & Redaction Verification */}
           <div className="space-y-4">
-            {fileError ? (
+            {documentRedactError && (
+              <Card title="Redaction Error" subtitle="Sanitization pipeline encountered an error">
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
+                  <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-rose-300">Document Redaction Failed</h4>
+                    <p className="text-xs text-slate-300">{documentRedactError.message}</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {fileError && (
               <Card title="Document Error" subtitle="Inspection could not be completed">
                 <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
                   <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
@@ -778,7 +940,158 @@ export function PromptScanner() {
                   </div>
                 </div>
               </Card>
-            ) : fileResult ? (
+            )}
+
+            {/* Sanitized Document & Verification Report */}
+            {documentRedactResult && (
+              <Card
+                title="Sanitization & Verification Report"
+                subtitle="Structural integrity validation, stream purge verification, and safe artifact generation"
+              >
+                {/* Verification status pill banner */}
+                <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+                  documentRedactResult.verification_status === 'VERIFIED'
+                    ? 'bg-emerald-950/20 border-emerald-500/30'
+                    : documentRedactResult.verification_status === 'PARTIAL'
+                    ? 'bg-amber-950/20 border-amber-500/30'
+                    : 'bg-rose-950/20 border-rose-500/30'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    {documentRedactResult.verification_status === 'VERIFIED' ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                    ) : documentRedactResult.verification_status === 'PARTIAL' ? (
+                      <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400 font-mono">VERIFICATION:</span>
+                        <span className={`text-xs font-bold font-mono ${
+                          documentRedactResult.verification_status === 'VERIFIED'
+                            ? 'text-emerald-400'
+                            : documentRedactResult.verification_status === 'PARTIAL'
+                            ? 'text-amber-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {documentRedactResult.verification_status}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        {documentRedactResult.verification_status === 'VERIFIED'
+                          ? 'Structural integrity confirmed, 0 residual secrets found on re-scan.'
+                          : documentRedactResult.verification_status === 'PARTIAL'
+                          ? 'File sanitized with partial verification warnings.'
+                          : 'Sanitization verification failed or file contains prompt injection attack.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge
+                    variant={
+                      documentRedactResult.verification_status === 'VERIFIED'
+                        ? 'emerald'
+                        : documentRedactResult.verification_status === 'PARTIAL'
+                        ? 'amber'
+                        : 'rose'
+                    }
+                    size="xs"
+                  >
+                    {documentRedactResult.verification_status}
+                  </Badge>
+                </div>
+
+                {/* Telemetry metrics */}
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">POLICY ACTION</span>
+                    <span className={`font-bold ${
+                      documentRedactResult.action === 'BLOCK'
+                        ? 'text-rose-400'
+                        : documentRedactResult.action === 'REDACT'
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                    }`}>
+                      {documentRedactResult.action}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">REDACTED ITEMS</span>
+                    <span className="font-bold text-cyan-300">{documentRedactResult.redaction_count}</span>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">RESIDUAL SECRETS</span>
+                    <span className="font-bold text-emerald-400">0 DETECTED</span>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">DOWNLOAD ACCESS</span>
+                    <span className={`font-bold ${documentRedactResult.can_download ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {documentRedactResult.can_download ? 'ENABLED' : 'LOCKED'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Affected Categories */}
+                {documentRedactResult.affected_categories?.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-mono mr-1">AFFECTED CATEGORIES:</span>
+                    {documentRedactResult.affected_categories.map((cat, idx) => (
+                      <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-800/40">
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Sanitized preview if available */}
+                {documentRedactResult.sanitized_preview && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-slate-400 font-mono">SANITIZED DOCUMENT PREVIEW:</span>
+                      <button
+                        onClick={() => handleCopyFileRedacted(documentRedactResult.sanitized_preview)}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                      >
+                        {fileCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{fileCopied ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#0B1020] border border-[#1E293B] text-xs font-mono text-slate-300 whitespace-pre-wrap max-h-36 overflow-y-auto">
+                      {documentRedactResult.sanitized_preview}
+                    </div>
+                  </div>
+                )}
+
+                {/* Download Button */}
+                <div className="mt-4 pt-3 border-t border-[#1E293B] flex flex-col sm:flex-row items-center justify-between gap-3">
+                  {documentRedactResult.can_download && documentRedactResult.redacted_file_id ? (
+                    <a
+                      href={getRedactedDownloadUrl(documentRedactResult.redacted_file_id)}
+                      download={documentRedactResult.sanitized_filename}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Sanitized {documentRedactResult.sanitized_filename}</span>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
+                      <Lock className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span>Download locked: Content cannot be downloaded until verified or because prompt injection attack was detected.</span>
+                    </div>
+                  )}
+
+                  {documentRedactResult.warnings?.length > 0 && (
+                    <div className="text-[11px] text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{documentRedactResult.warnings[0]}</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Document Scan Results (if scanned) */}
+            {fileResult && (
               <div className="space-y-4">
                 {/* Verdict Header */}
                 <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${
@@ -825,6 +1138,28 @@ export function PromptScanner() {
                     {fileResult.risk_level?.toUpperCase()} RISK
                   </Badge>
                 </div>
+
+                {/* Quick Redaction Trigger Callout if not yet redacted */}
+                {!documentRedactResult && (
+                  <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-800/40 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <Lock className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                      <div>
+                        <span className="text-xs font-semibold text-slate-200">Generate Sanitized Document</span>
+                        <p className="text-[11px] text-slate-400">Purge detected secrets and generate verified clean file</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRedactDocument}
+                      disabled={isDocumentRedacting}
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(34,211,238,0.3)] disabled:opacity-50"
+                    >
+                      <Lock className={`w-3.5 h-3.5 ${isDocumentRedacting ? 'animate-spin' : ''}`} />
+                      {isDocumentRedacting ? 'Sanitizing...' : 'Redact Now'}
+                    </button>
+                  </div>
+                )}
 
                 {/* Extraction Metadata Card */}
                 <Card title="Document Extraction Telemetry" subtitle="Parser status and structural breakdown">
@@ -923,12 +1258,14 @@ export function PromptScanner() {
                   </Card>
                 )}
               </div>
-            ) : (
+            )}
+
+            {!fileError && !fileResult && !documentRedactResult && !documentRedactError && (
               <div className="p-12 text-center text-slate-400 border border-dashed border-[#1E293B] rounded-2xl bg-[#0B1020]/30">
                 <FileText className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold text-slate-300">Awaiting Document Upload</h3>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Upload a PDF, Word document, CSV sheet, or JSON file to scan its actual text and cell values for vulnerabilities.
+                  Upload a PDF, Word document, CSV sheet, or JSON file to scan its text and cell values, or generate a verified sanitized artifact.
                 </p>
               </div>
             )}
@@ -1061,28 +1398,54 @@ export function PromptScanner() {
                     setSelectedImage(null);
                     setImageResult(null);
                     setImageError(null);
+                    setImageRedactResult(null);
+                    setImageRedactError(null);
                   }}
                   className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
                 >
                   Clear Selection
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleScanImage}
-                  disabled={isImageScanning || !selectedImage?.dataUrl}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(34,211,238,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Sparkles className={`w-4 h-4 ${isImageScanning ? 'animate-spin' : ''}`} />
-                  {isImageScanning ? 'Extracting Metadata & OCR...' : 'Scan Image & OCR'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleScanImage}
+                    disabled={isImageScanning || isImageRedacting || !selectedImage?.dataUrl}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isImageScanning ? 'animate-spin' : ''}`} />
+                    {isImageScanning ? 'Scanning...' : 'Inspect & OCR'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRedactImage}
+                    disabled={isImageRedacting || isImageScanning || !selectedImage?.dataUrl}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(34,211,238,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Lock className={`w-3.5 h-3.5 ${isImageRedacting ? 'animate-spin' : ''}`} />
+                    {isImageRedacting ? 'Redacting...' : 'Redact & Mask'}
+                  </button>
+                </div>
               </div>
             </Card>
           </div>
 
-          {/* Right Column: Image & OCR Results */}
+          {/* Right Column: Image & OCR Results & Redaction Verification */}
           <div className="space-y-4">
-            {imageError ? (
+            {imageRedactError && (
+              <Card title="Image Redaction Error" subtitle="Sanitization pipeline encountered an error">
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
+                  <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-rose-300">Image Redaction Failed</h4>
+                    <p className="text-xs text-slate-300">{imageRedactError.message}</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {imageError && (
               <Card title="Image Error" subtitle="Inspection could not be completed">
                 <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
                   <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
@@ -1092,7 +1455,135 @@ export function PromptScanner() {
                   </div>
                 </div>
               </Card>
-            ) : imageResult ? (
+            )}
+
+            {/* Side-by-Side Verification: Original vs Sanitized */}
+            {imageRedactResult && (
+              <Card
+                title="Side-by-Side Verification: Original vs Sanitized"
+                subtitle="Visual verification of opaque text masking, EXIF stripping, and residual OCR checks"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-1">
+                  {/* Original Image */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-300 font-mono">ORIGINAL SOURCE</span>
+                      <Badge variant="rose" size="xs">UNSANITIZED</Badge>
+                    </div>
+                    <div className="h-48 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center p-2">
+                      <img
+                        src={selectedImage?.dataUrl}
+                        alt="Original Source"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-mono">Contains unredacted text / EXIF metadata</p>
+                  </div>
+
+                  {/* Sanitized Image */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-400 font-mono">REDACTED ARTIFACT</span>
+                      <Badge
+                        variant={
+                          imageRedactResult.verification_status === 'VERIFIED'
+                            ? 'emerald'
+                            : imageRedactResult.verification_status === 'PARTIAL'
+                            ? 'amber'
+                            : 'rose'
+                        }
+                        size="xs"
+                      >
+                        {imageRedactResult.verification_status}
+                      </Badge>
+                    </div>
+                    <div className="h-48 rounded-xl overflow-hidden bg-slate-900 border border-emerald-900/40 flex items-center justify-center p-2 shadow-inner">
+                      {imageRedactResult.sanitized_image_base64 ? (
+                        <img
+                          src={imageRedactResult.sanitized_image_base64}
+                          alt="Sanitized Result"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      ) : (
+                        <div className="text-center text-slate-500 text-xs">No sanitized image generated</div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-mono">Opaque pixel masks + EXIF purged</p>
+                  </div>
+                </div>
+
+                {/* Metrics and Verification Badges */}
+                <div className="mt-4 pt-3 border-t border-[#1E293B] grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">STATUS</span>
+                    <span className={`font-bold ${
+                      imageRedactResult.verification_status === 'VERIFIED'
+                        ? 'text-emerald-400'
+                        : imageRedactResult.verification_status === 'PARTIAL'
+                        ? 'text-amber-400'
+                        : 'text-rose-400'
+                    }`}>
+                      {imageRedactResult.verification_status}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">MASKS APPLIED</span>
+                    <span className="font-bold text-cyan-300">{imageRedactResult.redaction_count}</span>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">EXIF METADATA</span>
+                    <span className="font-bold text-emerald-400">STRIPPED (0 B)</span>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B1020] border border-[#1E293B]">
+                    <span className="text-[10px] text-slate-400 block">DOWNLOAD ACCESS</span>
+                    <span className={`font-bold ${imageRedactResult.can_download ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {imageRedactResult.can_download ? 'ENABLED' : 'LOCKED'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Affected Categories */}
+                {imageRedactResult.affected_categories?.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-mono mr-1">AFFECTED CATEGORIES:</span>
+                    {imageRedactResult.affected_categories.map((cat, idx) => (
+                      <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-800/40">
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Download Button */}
+                <div className="mt-4 pt-3 border-t border-[#1E293B] flex flex-col sm:flex-row items-center justify-between gap-3">
+                  {imageRedactResult.can_download && imageRedactResult.redacted_file_id ? (
+                    <a
+                      href={getRedactedDownloadUrl(imageRedactResult.redacted_file_id)}
+                      download={imageRedactResult.sanitized_filename}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Verified Sanitized Image</span>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
+                      <Lock className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span>Download locked: Artifact is not verified or policy blocked file download.</span>
+                    </div>
+                  )}
+
+                  {imageRedactResult.warnings?.length > 0 && (
+                    <div className="text-[11px] text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{imageRedactResult.warnings[0]}</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Image Scan Results (if scanned) */}
+            {imageResult && (
               <div className="space-y-4">
                 {/* Verdict Header */}
                 <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${
@@ -1139,6 +1630,28 @@ export function PromptScanner() {
                     {imageResult.risk_level?.toUpperCase()} RISK
                   </Badge>
                 </div>
+
+                {/* Quick Redaction Trigger Callout if not yet redacted */}
+                {!imageRedactResult && (
+                  <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-800/40 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <Lock className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                      <div>
+                        <span className="text-xs font-semibold text-slate-200">Apply Image Masking & Redaction</span>
+                        <p className="text-[11px] text-slate-400">Mask detected OCR text and strip all EXIF metadata</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRedactImage}
+                      disabled={isImageRedacting}
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(34,211,238,0.3)] disabled:opacity-50"
+                    >
+                      <Lock className={`w-3.5 h-3.5 ${isImageRedacting ? 'animate-spin' : ''}`} />
+                      {isImageRedacting ? 'Redacting...' : 'Redact Now'}
+                    </button>
+                  </div>
+                )}
 
                 {/* OCR & Processing Status */}
                 <Card title="Image Content & OCR Engine" subtitle="Visible text recognition status and preview">
@@ -1238,45 +1751,15 @@ export function PromptScanner() {
                     </div>
                   )}
                 </Card>
-
-                {/* Sanitized Image Output */}
-                {imageResult.sanitized_image_base64 && (
-                  <Card
-                    title="Sanitized & Redacted Image"
-                    subtitle="EXIF headers, GPS tracking tags, and camera serials safely stripped"
-                    headerAction={
-                      <a
-                        href={imageResult.sanitized_image_base64}
-                        download={`sanitized_${selectedImage?.filename || 'image.png'}`}
-                        className="px-2.5 py-1 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 transition-colors flex items-center gap-1.5"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download Clean Image</span>
-                      </a>
-                    }
-                  >
-                    <div className="p-4 rounded-xl bg-[#0B1020] border border-[#1E293B] flex flex-col items-center justify-center gap-3">
-                      <div className="max-h-48 max-w-full rounded-lg overflow-hidden border border-slate-700/60 shadow-lg">
-                        <img
-                          src={imageResult.sanitized_image_base64}
-                          alt="Sanitized Result"
-                          className="max-h-48 max-w-full object-contain"
-                        />
-                      </div>
-                      <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Safe for transmission to AI models (0 tracking metadata)
-                      </span>
-                    </div>
-                  </Card>
-                )}
               </div>
-            ) : (
+            )}
+
+            {!imageError && !imageResult && !imageRedactResult && !imageRedactError && (
               <div className="p-12 text-center text-slate-400 border border-dashed border-[#1E293B] rounded-2xl bg-[#0B1020]/30">
                 <ImageIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold text-slate-300">Awaiting Image Inspection</h3>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Select a test scenario or upload an image to detect GPS coordinates, camera metadata, and visible text via OCR.
+                  Select a test scenario or upload an image to inspect EXIF metadata, visible OCR text, and generate verified redacted images.
                 </p>
               </div>
             )}

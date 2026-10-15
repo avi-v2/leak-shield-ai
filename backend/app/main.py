@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.database import init_db
 from app.security.classifier import get_classifier
-from app.routes import health, scan, chat, events, policies, metrics, image_scan
+from app.routes import health, scan, chat, events, policies, metrics, image_scan, redact
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +46,7 @@ app.include_router(events.router)
 app.include_router(policies.router)
 app.include_router(metrics.router)
 app.include_router(image_scan.router)
+app.include_router(redact.router)
 
 # Safe structured error handling
 @app.exception_handler(Exception)
