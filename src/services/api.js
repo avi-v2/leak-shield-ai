@@ -199,6 +199,106 @@ export async function getMetrics() {
 }
 
 /**
+ * GET /metrics/summary
+ * Retrieve top-level KPI metrics computed from real SQLite events
+ * @param {string} range - Time window: '1h', '24h', '7d', '30d', 'all'
+ */
+export async function getDashboardSummary(range = 'all') {
+  return await apiRequest(`/metrics/summary?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/timeline
+ * Retrieve time-series telemetry for scans, threats, blocked, and redacted requests
+ * @param {string} range - Time window: '1h', '24h', '7d', '30d', 'all'
+ */
+export async function getDashboardTimeline(range = '24h') {
+  return await apiRequest(`/metrics/timeline?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/threat-categories
+ * Retrieve threat category breakdown (findings vs unique scans)
+ * @param {string} range - Time window: '1h', '24h', '7d', '30d', 'all'
+ */
+export async function getThreatCategories(range = 'all') {
+  return await apiRequest(`/metrics/threat-categories?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/injection-keywords
+ * Retrieve top injection keywords/phrases extracted from flagged requests
+ * @param {string} range - Time window
+ * @param {number} limit - Maximum keywords to return
+ */
+export async function getInjectionKeywords(range = 'all', limit = 15) {
+  return await apiRequest(`/metrics/injection-keywords?range=${encodeURIComponent(range)}&limit=${limit}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/dlp
+ * Retrieve sensitive data & DLP analytics
+ * @param {string} range - Time window
+ */
+export async function getDlpAnalytics(range = 'all') {
+  return await apiRequest(`/metrics/dlp?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/policies
+ * Retrieve policy verdict distribution and top block/redact justifications
+ * @param {string} range - Time window
+ */
+export async function getPolicyDistribution(range = 'all') {
+  return await apiRequest(`/metrics/policies?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/file-image
+ * Retrieve document & image scanning telemetry (OCR, metadata, GPS, injections in files)
+ * @param {string} range - Time window
+ */
+export async function getFileImageAnalytics(range = 'all') {
+  return await apiRequest(`/metrics/file-image?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+  });
+}
+
+/**
+ * GET /metrics/events
+ * Retrieve filtered and paginated security events from SQLite
+ * @param {Object} params - Query parameters (limit, offset, range, search, category, action, input_type, severity)
+ */
+export async function getDashboardEvents(params = {}) {
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.set('limit', params.limit);
+  if (params.offset !== undefined) queryParams.set('offset', params.offset);
+  if (params.range) queryParams.set('range', params.range);
+  if (params.search) queryParams.set('search', params.search);
+  if (params.category && params.category !== 'ALL') queryParams.set('category', params.category);
+  if (params.action && params.action !== 'ALL') queryParams.set('action', params.action);
+  if (params.input_type && params.input_type !== 'ALL') queryParams.set('input_type', params.input_type);
+  if (params.severity && params.severity !== 'ALL') queryParams.set('severity', params.severity);
+
+  const qs = queryParams.toString();
+  return await apiRequest(`/metrics/events${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+/**
  * GET /events/search
  * Natural language semantic search across security audit logs
  * @param {string} query - The semantic query (e.g. "password leak", "cloud secrets")

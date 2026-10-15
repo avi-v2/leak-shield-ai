@@ -19,7 +19,7 @@ export function Sidebar({ isOpen, onClose }) {
   const { connectionStatus, events } = useGateway();
 
   const navItems = [
-    { name: 'Security Overview', path: '/', icon: Activity },
+    { name: 'Security Dashboard', path: '/', icon: Activity },
     { name: 'Live Threat Monitor', path: '/threats', icon: ShieldAlert, badge: events?.length ? `${events.length}` : null },
     { name: 'Prompt Security Scanner', path: '/scanner', icon: Terminal },
     { name: 'Request Playground', path: '/playground', icon: Play },

@@ -4,6 +4,7 @@ import { GatewayProvider } from './context/GatewayContext';
 import { AppLayout } from './components/layout/AppLayout';
 
 import { Overview } from './pages/Overview';
+import { Dashboard } from './pages/Dashboard';
 import { ThreatMonitor } from './pages/ThreatMonitor';
 import { PromptScanner } from './pages/PromptScanner';
 import { Playground } from './pages/Playground';
@@ -18,6 +19,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Overview />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="threats" element={<ThreatMonitor />} />
             <Route path="scanner" element={<PromptScanner />} />
             <Route path="playground" element={<Playground />} />

@@ -776,8 +776,8 @@ def get_paginated_events(
 
     if search and search.strip():
         term = f"%{search.strip().lower()}%"
-        conditions.append("(LOWER(summary) LIKE ? OR LOWER(matched_rules) LIKE ? OR LOWER(request_id) LIKE ? OR LOWER(id) LIKE ?)")
-        params.extend([term, term, term, term])
+        conditions.append("(LOWER(summary) LIKE ? OR LOWER(matched_rules) LIKE ? OR LOWER(request_id) LIKE ? OR LOWER(id) LIKE ? OR LOWER(sanitized_preview) LIKE ?)")
+        params.extend([term, term, term, term, term])
 
     where_sql = (" WHERE " + " AND ".join(conditions)) if conditions else ""
 
