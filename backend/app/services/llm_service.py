@@ -22,7 +22,7 @@ def check_llm_availability() -> Tuple[bool, Optional[str]]:
 
     url = f"{settings.OLLAMA_BASE_URL}/api/tags"
     try:
-        with httpx.Client(timeout=2.0) as client:
+        with httpx.Client(timeout=httpx.Timeout(connect=1.0, read=2.0, write=2.0, pool=1.0)) as client:
             resp = client.get(url)
             if resp.status_code == 200:
                 data = resp.json()
