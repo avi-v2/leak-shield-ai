@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { checkHealth, getEvents, clearEvents as apiClearEvents, getApiBaseUrl, setApiBaseUrl } from '../services/api';
-import { MOCK_SECURITY_EVENTS } from '../services/mockData';
+import {
+  checkHealth,
+  getEvents,
+  clearEvents as apiClearEvents,
+  getPolicies,
+  updatePolicies as apiUpdatePolicies,
+  getMetrics,
+  getApiBaseUrl,
+  setApiBaseUrl
+} from '../services/api';
 
 const GatewayContext = createContext(null);
 
@@ -10,6 +18,9 @@ export const DEFAULT_POLICIES = {
   detectSsn: true,
   detectEmails: true,
   detectPasswords: true,
+  detectAadhaar: true,
+  detectPan: true,
+  detectPhone: true,
   blockPromptInjection: true,
   blockJailbreaks: true,
   blockSystemPromptExtraction: true,
@@ -24,19 +35,22 @@ export function GatewayProvider({ children }) {
   const [latency, setLatency] = useState(null);
   const [backendData, setBackendData] = useState(null);
   const [events, setEvents] = useState([]);
-  const [isUsingSimulatedData, setIsUsingSimulatedData] = useState(false);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [metrics, setMetrics] = useState({
+    total_requests: 0,
+    allowed_requests: 0,
+    blocked_requests: 0,
+    redacted_requests: 0,
+    sensitive_data_detections: 0,
+    injection_detections: 0,
+    traffic_over_time: [],
+    threat_distribution: []
+  });
+  const [metricsLoading, setMetricsLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  // Local policies state
-  const [policies, setPolicies] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sentinel_local_policies');
-      return saved ? JSON.parse(saved) : DEFAULT_POLICIES;
-    } catch {
-      return DEFAULT_POLICIES;
-    }
-  });
+  // Server-synchronized policies state
+  const [policies, setPolicies] = useState(DEFAULT_POLICIES);
   const [hasUnsavedPolicyChanges, setHasUnsavedPolicyChanges] = useState(false);
 
   // Toast dispatcher
@@ -79,49 +93,73 @@ export function GatewayProvider({ children }) {
     }
   }, []);
 
-  // Fetch security events
+  // Fetch security events from real SQLite database
   const loadEvents = useCallback(async () => {
     setEventsLoading(true);
     try {
       const res = await getEvents();
       if (res.success && Array.isArray(res.data)) {
         setEvents(res.data);
-        setIsUsingSimulatedData(false);
       } else {
-        // Empty or non-array, fall back
-        setEvents(MOCK_SECURITY_EVENTS);
-        setIsUsingSimulatedData(true);
+        setEvents([]);
       }
     } catch (err) {
-      // Backend not connected or error, use realistic mock data
-      setEvents(MOCK_SECURITY_EVENTS);
-      setIsUsingSimulatedData(true);
+      // Backend not connected or error, honest empty state
+      setEvents([]);
     } finally {
       setEventsLoading(false);
     }
   }, []);
 
-  // Clear events
+  // Fetch real operational metrics from backend
+  const loadMetrics = useCallback(async () => {
+    setMetricsLoading(true);
+    try {
+      const res = await getMetrics();
+      if (res.success && res.data) {
+        setMetrics(res.data);
+      }
+    } catch (err) {
+      // Keep real zero state
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
+
+  // Fetch server policies
+  const loadServerPolicies = useCallback(async () => {
+    try {
+      const res = await getPolicies();
+      if (res.success && res.data) {
+        setPolicies(res.data);
+        setHasUnsavedPolicyChanges(false);
+      }
+    } catch (err) {
+      // Retain defaults if offline
+    }
+  }, []);
+
+  // Clear events via DELETE /events
   const clearAllEvents = useCallback(async () => {
     try {
       if (connectionStatus === 'connected') {
-        await apiClearEvents();
+        const res = await apiClearEvents();
         setEvents([]);
+        loadMetrics();
         addToast({
           title: 'Audit Logs Cleared',
-          message: 'All security event logs removed from backend gateway.',
+          message: res.data?.message || 'All security event logs removed from backend gateway.',
           type: 'success',
         });
+        return true;
       } else {
-        setEvents([]);
-        setIsUsingSimulatedData(false);
         addToast({
-          title: 'Demo Logs Cleared',
-          message: 'Cleared local simulated events cache.',
-          type: 'info',
+          title: 'Gateway Offline',
+          message: 'Cannot clear logs while gateway is offline.',
+          type: 'error',
         });
+        return false;
       }
-      return true;
     } catch (err) {
       addToast({
         title: 'Error Clearing Logs',
@@ -130,16 +168,16 @@ export function GatewayProvider({ children }) {
       });
       return false;
     }
-  }, [connectionStatus, addToast]);
+  }, [connectionStatus, addToast, loadMetrics]);
 
   // Update backend URL
   const updateBackendUrl = useCallback((newUrl) => {
     setApiBaseUrl(newUrl);
-    setBackendUrl(getApiBaseUrl());
+    setBackendUrlState(getApiBaseUrl());
     pingBackend();
   }, [pingBackend]);
 
-  // Update policy draft
+  // Update local policy draft
   const updatePolicy = useCallback((key, value) => {
     setPolicies((prev) => {
       const next = { ...prev, [key]: value };
@@ -148,41 +186,55 @@ export function GatewayProvider({ children }) {
     });
   }, []);
 
-  // Save policy draft to localStorage
-  const savePolicies = useCallback(() => {
+  // Save policies to backend
+  const savePolicies = useCallback(async () => {
     try {
-      localStorage.setItem('sentinel_local_policies', JSON.stringify(policies));
-      setHasUnsavedPolicyChanges(false);
+      const res = await apiUpdatePolicies(policies);
+      if (res.success && res.data) {
+        setPolicies(res.data);
+        setHasUnsavedPolicyChanges(false);
+        addToast({
+          title: 'Policies Enforced on Server',
+          message: 'Security policy successfully persisted to SQLite on the gateway backend.',
+          type: 'success',
+        });
+      }
+    } catch (err) {
       addToast({
-        title: 'Policies Saved Locally',
-        message: 'Saved configuration in browser state (Note: Server rules take final precedence).',
-        type: 'success',
-      });
-    } catch {
-      addToast({
-        title: 'Error Saving Policies',
-        message: 'Could not write to browser storage.',
+        title: 'Policy Save Error',
+        message: err.message || 'Could not persist policies to gateway backend.',
         type: 'error',
       });
     }
   }, [policies, addToast]);
 
   // Reset policies to default
-  const resetPolicies = useCallback(() => {
-    setPolicies(DEFAULT_POLICIES);
-    localStorage.removeItem('sentinel_local_policies');
-    setHasUnsavedPolicyChanges(false);
-    addToast({
-      title: 'Policies Reset',
-      message: 'Restored default Sentinel security thresholds.',
-      type: 'info',
-    });
+  const resetPolicies = useCallback(async () => {
+    try {
+      const res = await apiUpdatePolicies(DEFAULT_POLICIES);
+      if (res.success && res.data) {
+        setPolicies(res.data);
+        setHasUnsavedPolicyChanges(false);
+        addToast({
+          title: 'Policies Reset',
+          message: 'Restored default Sentinel security thresholds on the server.',
+          type: 'info',
+        });
+      }
+    } catch (err) {
+      setPolicies(DEFAULT_POLICIES);
+      setHasUnsavedPolicyChanges(false);
+    }
   }, [addToast]);
 
   // Initial load
   useEffect(() => {
-    pingBackend().then(() => {
-      loadEvents();
+    pingBackend().then((connected) => {
+      if (connected) {
+        loadEvents();
+        loadMetrics();
+        loadServerPolicies();
+      }
     });
 
     const interval = setInterval(() => {
@@ -190,7 +242,7 @@ export function GatewayProvider({ children }) {
     }, 15000); // Poll health every 15s
 
     return () => clearInterval(interval);
-  }, [pingBackend, loadEvents]);
+  }, [pingBackend, loadEvents, loadMetrics, loadServerPolicies]);
 
   const value = {
     backendUrl,
@@ -202,8 +254,10 @@ export function GatewayProvider({ children }) {
     events,
     eventsLoading,
     loadEvents,
+    metrics,
+    metricsLoading,
+    loadMetrics,
     clearAllEvents,
-    isUsingSimulatedData,
     toasts,
     addToast,
     removeToast,

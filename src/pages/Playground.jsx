@@ -23,7 +23,7 @@ import { Card } from '../components/common/Card';
 import { Link } from 'react-router-dom';
 
 export function Playground() {
-  const { connectionStatus, addToast, backendUrl } = useGateway();
+  const { connectionStatus, addToast, backendUrl, loadEvents, loadMetrics } = useGateway();
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt-4o-security-proxy');
@@ -102,6 +102,8 @@ export function Playground() {
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
+        loadEvents();
+        loadMetrics();
       } else {
         throw new Error('Invalid response structure received from POST /chat');
       }

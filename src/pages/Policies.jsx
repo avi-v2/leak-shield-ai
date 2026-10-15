@@ -69,13 +69,13 @@ export function Policies() {
         </div>
       </div>
 
-      {/* Prominent Disclaimer Notice */}
+      {/* Prominent Policy Notice */}
       <div className="p-4 rounded-xl bg-[#111827] border border-[#1E293B] flex items-start gap-3">
         <Info className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-slate-300 leading-relaxed">
-          <strong className="text-cyan-300">Policy Synchronization Note:</strong> Settings modified here
-          are stored in local browser configuration for demonstration purposes. The Python FastAPI backend enforces
-          production security rules independently on all endpoints to prevent client-side security bypasses.
+          <strong className="text-cyan-300">Server Policy Enforcement:</strong> Policies configured here
+          are synchronized directly with the Python FastAPI backend and stored in SQLite. Mandatory credential
+          exfiltration rules (API keys, raw passwords) are strictly enforced by the server and cannot be bypassed.
         </div>
       </div>
 

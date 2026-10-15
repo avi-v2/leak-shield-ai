@@ -3,7 +3,7 @@
  * Centralized service module for communicating with the Python FastAPI backend.
  */
 
-const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_TIMEOUT_MS = 15000;
 
 // Read API Base URL from localStorage (if customized in Settings) or environment variable
 export function getApiBaseUrl() {
@@ -145,10 +145,14 @@ export async function submitChat(prompt, model = 'gpt-4o-security-proxy') {
 
 /**
  * GET /events
- * Retrieve security event audit metadata
+ * Retrieve real security event audit metadata
  */
-export async function getEvents() {
-  return await apiRequest('/events', {
+export async function getEvents(limit = 100, offset = 0, decision = null) {
+  let endpoint = `/events?limit=${limit}&offset=${offset}`;
+  if (decision && decision !== 'ALL') {
+    endpoint += `&decision=${encodeURIComponent(decision)}`;
+  }
+  return await apiRequest(endpoint, {
     method: 'GET',
   });
 }
@@ -160,5 +164,36 @@ export async function getEvents() {
 export async function clearEvents() {
   return await apiRequest('/events', {
     method: 'DELETE',
+  });
+}
+
+/**
+ * GET /policies
+ * Retrieve current server-side security policies
+ */
+export async function getPolicies() {
+  return await apiRequest('/policies', {
+    method: 'GET',
+  });
+}
+
+/**
+ * PUT /policies
+ * Update server-side security policies
+ */
+export async function updatePolicies(policies) {
+  return await apiRequest('/policies', {
+    method: 'PUT',
+    body: policies,
+  });
+}
+
+/**
+ * GET /metrics
+ * Retrieve operational statistics computed from real SQLite events
+ */
+export async function getMetrics() {
+  return await apiRequest('/metrics', {
+    method: 'GET',
   });
 }
