@@ -16,7 +16,7 @@ from app.main import app
 
 if __name__ == "__main__":
     print("================================================================")
-    print(" Starting Sentinel AI — Enterprise AI Security Gateway Backend  ")
+    print(" Starting Leak-Sheild-AI — Enterprise AI Security Gateway       ")
     print(" Powered by Python, FastAPI, Scikit-learn, and SQLite           ")
     print(" Listening on http://127.0.0.1:8000 (Docs: /docs)               ")
     print("================================================================")

@@ -87,7 +87,7 @@ export function Settings() {
         });
         addToast({
           title: 'Gateway Connected',
-          message: `Sentinel backend verified at ${inputUrl} (${roundtripTime}ms)`,
+          message: `Leak-Sheild-AI backend verified at ${inputUrl} (${roundtripTime}ms)`,
           type: 'success',
         });
       } else {
@@ -137,7 +137,7 @@ export function Settings() {
         <div className="lg:col-span-7 space-y-6">
           <Card
             title="FastAPI Gateway Endpoint"
-            subtitle="Configure the target Sentinel AI Python backend URL"
+            subtitle="Configure the target Leak-Sheild-AI Python backend URL"
           >
             <form onSubmit={handleSaveUrl} className="space-y-4">
               <div>
@@ -289,7 +289,7 @@ export function Settings() {
         <div className="lg:col-span-5 space-y-6">
           <Card
             title="Security & Privacy Boundary"
-            subtitle="Sentinel AI data protection architecture"
+            subtitle="Leak-Sheild-AI data protection architecture"
           >
             <div className="space-y-4 text-xs text-slate-300 leading-relaxed">
               <div className="p-3 rounded-lg bg-[#0B1020] border border-[#1E293B] flex items-start gap-3">
@@ -328,7 +328,7 @@ export function Settings() {
             <div className="space-y-2 font-mono text-xs">
               <div className="flex justify-between py-1 border-b border-[#1E293B]">
                 <span className="text-slate-400">Application</span>
-                <span className="text-slate-200">Sentinel AI Gateway</span>
+                <span className="text-slate-200">Leak-Sheild-AI Gateway</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#1E293B]">
                 <span className="text-slate-400">Frontend Release</span>

@@ -52,7 +52,7 @@ export function Sidebar({ isOpen, onClose }) {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-sm tracking-wide text-white">SENTINEL</span>
+              <span className="font-bold text-sm tracking-wide text-white">LEAK-SHEILD</span>
               <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-500/10 px-1 py-0.2 rounded border border-cyan-500/30">
                 AI
               </span>

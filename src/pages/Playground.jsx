@@ -26,13 +26,13 @@ export function Playground() {
   const { connectionStatus, addToast, backendUrl, loadEvents, loadMetrics } = useGateway();
 
   const [inputPrompt, setInputPrompt] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gpt-4o-security-proxy');
+  const [selectedModel, setSelectedModel] = useState('llama3.2:3b');
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
       role: 'system',
       content:
-        'Sentinel AI Gateway is active. Every query submitted through this playground is inspected for sensitive data egress, credential exfiltration, and prompt injections before being routed upstream.',
+        'Leak-Sheild-AI Gateway is active. Every query submitted through this playground is inspected for sensitive data egress, credential exfiltration, and prompt injections before being routed upstream.',
       timestamp: new Date().toISOString(),
     },
   ]);
@@ -55,7 +55,7 @@ export function Playground() {
 
     if (connectionStatus !== 'connected') {
       setLastError(
-        `Backend gateway is offline at ${backendUrl}. The Request Playground requires an active Sentinel AI backend server at POST /chat.`
+        `Backend gateway is offline at ${backendUrl}. The Request Playground requires an active Leak-Sheild-AI backend server at POST /chat.`
       );
       addToast({
         title: 'Backend Offline',
@@ -146,7 +146,7 @@ export function Playground() {
             <Badge variant="cyan" size="sm">GATEWAY PROXY</Badge>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Simulate end-user applications communicating through the Sentinel AI security gateway.
+            Simulate end-user applications communicating through the Leak-Sheild-AI security gateway.
           </p>
         </div>
 
@@ -156,7 +156,7 @@ export function Playground() {
             onChange={(e) => setSelectedModel(e.target.value)}
             className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500/50"
           >
-            <option value="gpt-4o-security-proxy">Proxy: GPT-4o Security Enforced</option>
+            <option value="llama3.2:3b">Proxy: GPT-4o Security Enforced</option>
             <option value="claude-3-5-sonnet-proxy">Proxy: Claude 3.5 Sonnet Enforced</option>
             <option value="llama-3-70b-proxy">Proxy: Llama-3 Enterprise Enforced</option>
           </select>
@@ -245,7 +245,7 @@ export function Playground() {
                   <div className="flex items-center justify-between gap-3 pb-2.5 mb-2.5 border-b border-slate-700/50 text-xs">
                     <div className="flex items-center gap-2">
                       <Bot className="w-4 h-4 text-cyan-400" />
-                      <span className="font-semibold text-slate-100 text-xs">Sentinel AI Gateway</span>
+                      <span className="font-semibold text-slate-100 text-xs">Leak-Sheild-AI Gateway</span>
                       <Badge variant={msg.decision} size="xs">{msg.decision}</Badge>
                     </div>
 
@@ -301,7 +301,7 @@ export function Playground() {
             <div className="flex justify-start">
               <div className="p-4 rounded-2xl bg-[#111c2e] border border-[#1E293B] flex items-center gap-3 text-xs text-slate-400">
                 <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
-                <span>Sentinel AI inspecting payload & routing through security proxy...</span>
+                <span>Leak-Sheild-AI inspecting payload & routing through security proxy...</span>
               </div>
             </div>
           )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   Download,
@@ -12,9 +12,11 @@ import {
   Lock,
   Filter,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import { useGateway } from '../context/GatewayContext';
+import { searchEventsSemantic } from '../services/api';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -38,9 +40,55 @@ export function AuditLogs() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [isSemanticMode, setIsSemanticMode] = useState(false);
+  const [semanticResults, setSemanticResults] = useState(null);
+  const [isSearchingSemantic, setIsSearchingSemantic] = useState(false);
+
+  // Handle semantic search query trigger
+  useEffect(() => {
+    let cancel = false;
+    if (isSemanticMode && searchTerm.trim().length >= 2) {
+      setIsSearchingSemantic(true);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await searchEventsSemantic(searchTerm.trim(), 0.05);
+          if (!cancel && res.success) {
+            setSemanticResults(res.data || []);
+          }
+        } catch (err) {
+          if (!cancel) {
+            addToast({
+              title: 'Semantic Search Error',
+              message: err.message || 'Failed to complete semantic query.',
+              type: 'error',
+            });
+          }
+        } finally {
+          if (!cancel) setIsSearchingSemantic(false);
+        }
+      }, 350);
+
+      return () => {
+        cancel = true;
+        clearTimeout(timer);
+      };
+    } else {
+      setSemanticResults(null);
+      setIsSearchingSemantic(false);
+    }
+  }, [searchTerm, isSemanticMode]);
 
   // Filtered audit events
   const filteredEvents = useMemo(() => {
+    if (isSemanticMode && semanticResults !== null) {
+      return semanticResults.filter((evt) => {
+        if (decisionFilter !== 'ALL' && evt.action_taken !== decisionFilter) {
+          return false;
+        }
+        return true;
+      });
+    }
+
     return events.filter((evt) => {
       if (searchTerm.trim() !== '') {
         const q = searchTerm.toLowerCase();
@@ -56,7 +104,7 @@ export function AuditLogs() {
 
       return true;
     });
-  }, [events, searchTerm, decisionFilter]);
+  }, [events, searchTerm, decisionFilter, isSemanticMode, semanticResults]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
@@ -96,7 +144,7 @@ export function AuditLogs() {
       `"${e.severity || ''}"`,
       `"${e.action_taken || ''}"`,
       `"${e.details?.latency_ms || 18}"`,
-      `"${e.source || 'Sentinel Gateway'}"`,
+      `"${e.source || 'Leak-Sheild Gateway'}"`,
       `"${e.status || 'mitigated'}"`,
       `"${(e.details?.matched_rules || []).join(';')}"`,
       `"${e.details?.client_ip ? e.details.client_ip.substring(0, 7) + '***' : '192.168.***'}"`
@@ -107,7 +155,7 @@ export function AuditLogs() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `sentinel_audit_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `leak_sheild_audit_logs_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -176,18 +224,47 @@ export function AuditLogs() {
       {/* Filter Bar */}
       <Card>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder={isSemanticMode ? "Semantic Search: e.g. 'jailbreak', 'credential leak', 'pci'..." : "Search by Request ID, category, or detail..."}
+                className={`w-full pl-9 pr-4 py-2 bg-[#0B1020] border rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none ${
+                  isSemanticMode
+                    ? 'border-purple-500/50 focus:border-purple-400 focus:ring-1 focus:ring-purple-400/30'
+                    : 'border-[#1E293B] focus:border-cyan-500/50'
+                }`}
+              />
+              {isSearchingSemantic && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-purple-400 font-mono animate-pulse">
+                  Ranking...
+                </div>
+              )}
+            </div>
+
+            {/* Semantic Vector Search Mode Toggle */}
+            <button
+              onClick={() => {
+                setIsSemanticMode(!isSemanticMode);
                 setCurrentPage(1);
               }}
-              placeholder="Search by Request ID, category, or detail..."
-              className="w-full pl-9 pr-4 py-2 bg-[#0B1020] border border-[#1E293B] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
-            />
+              title="Vector semantic similarity search based on cybersecurity concept embeddings"
+              className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+                isSemanticMode
+                  ? 'bg-purple-950/70 border-purple-500 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
+                  : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isSemanticMode ? 'text-purple-300 fill-purple-300' : ''}`} />
+              <span className="hidden md:inline">Semantic AI Search</span>
+              <span className="md:hidden">Semantic</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -249,9 +326,15 @@ export function AuditLogs() {
                         {evt.id}
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-slate-100">{evt.threat_category}</span>
                           <Badge variant={evt.severity} size="xs">{evt.severity}</Badge>
+                          {evt.semantic_match_percentage !== undefined && evt.semantic_match_percentage !== null && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              {evt.semantic_match_percentage}% Match
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-400 truncate max-w-sm">{evt.summary}</div>
                       </td>
@@ -327,7 +410,7 @@ export function AuditLogs() {
         onClose={() => setIsConfirmOpen(false)}
         onConfirm={handleClearLogs}
         title="Clear Security Audit Logs?"
-        message="This will permanently delete all stored security event logs from the Sentinel AI backend gateway. This action cannot be reverted."
+        message="This will permanently delete all stored security event logs from the Leak-Sheild-AI backend gateway. This action cannot be reverted."
         confirmText="Confirm Clear"
         cancelText="Keep Logs"
         danger={true}

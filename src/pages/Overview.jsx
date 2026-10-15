@@ -285,7 +285,7 @@ export function Overview() {
       {/* Recent Intercepted Threats Table */}
       <Card
         title="Recent Intercepted Violations"
-        subtitle="Last security actions enforced by Sentinel AI"
+        subtitle="Last security actions enforced by Leak-Sheild-AI"
         headerAction={
           <Link
             to="/threats"

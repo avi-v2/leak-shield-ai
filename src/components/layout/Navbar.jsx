@@ -41,7 +41,7 @@ export function Navbar({ onMenuClick }) {
         </button>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 hidden sm:inline">Sentinel AI</span>
+          <span className="text-xs text-slate-400 hidden sm:inline">Leak-Sheild-AI</span>
           <span className="text-slate-500 hidden sm:inline">/</span>
           <h1 className="text-sm font-semibold text-slate-100">{getPageTitle(location.pathname)}</h1>
         </div>

@@ -37,7 +37,7 @@ class ScanResponse(BaseModel):
 class ChatRequest(BaseModel):
     """Payload for POST /chat"""
     prompt: str = Field(..., min_length=1, max_length=20000, description="Prompt to submit through security proxy")
-    model: Optional[str] = Field("gpt-4o-security-proxy", description="Model proxy target identifier")
+    model: Optional[str] = Field("llama3.2:3b", description="Model proxy target identifier")
 
 class ChatResponse(BaseModel):
     """Response returned by POST /chat"""
@@ -94,6 +94,36 @@ class EventResponse(BaseModel):
     status: str
     summary: str
     details: EventDetails
+    similarity_score: Optional[float] = None
+    semantic_match_percentage: Optional[int] = None
+
+class ImageMetadata(BaseModel):
+    """Extracted technical and privacy-related image metadata."""
+    format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    mode: Optional[str] = None
+    file_size_bytes: int = 0
+    has_exif: bool = False
+    gps_coordinates: Optional[Dict[str, Any]] = None
+    device_info: Optional[Dict[str, str]] = None
+
+class ImageScanRequest(BaseModel):
+    """Payload for POST /scan/image (JSON format with base64 data)."""
+    image_base64: str = Field(..., description="Base64 encoded image data or data URI")
+    filename: Optional[str] = Field("uploaded_image.png", description="Original image filename")
+
+class ImageScanResponse(BaseModel):
+    """Response schema for image privacy and sensitive data scan."""
+    request_id: str
+    action: Literal["ALLOW", "REDACT", "BLOCK"]
+    risk_level: Literal["low", "medium", "high", "critical"]
+    findings: List[Finding]
+    metadata: ImageMetadata
+    recommendation: str
+    sanitized_image_base64: Optional[str] = None
+    scanned_at: str
+    explanation: Optional[str] = None
 
 class MetricsResponse(BaseModel):
     """Response schema for GET /metrics."""

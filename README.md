@@ -1,6 +1,6 @@
-# Sentinel AI — AI Data Leakage Security Gateway & Prompt Firewall
+# Leak-Sheild-AI — AI Data Leakage Security Gateway & Prompt Firewall
 
-**Sentinel AI** is an enterprise AI Data Leakage Prevention (DLP) and Prompt Injection Security Gateway built with Python, FastAPI, Scikit-learn, SQLite, and React.
+**Leak-Sheild-AI** is an enterprise AI Data Leakage Prevention (DLP) and Prompt Injection Security Gateway built with Python, FastAPI, Scikit-learn, SQLite, and React.
 
 It acts as a secure reverse proxy between client applications and Large Language Models (LLMs), inspecting, redacting, or blocking requests that contain sensitive credentials, personal identifiable information (PII), payment card data, or adversarial prompt injection attacks.
 
@@ -81,7 +81,7 @@ It acts as a secure reverse proxy between client applications and Large Language
 ## Quick Start on Windows
 
 ### 1. Prerequisites
-- **Python 3.11+** installed (Python 3.13 tested)
+- **Python 3.11+** installed
 - **Node.js 18+** installed
 
 ### 2. Automated One-Click Launch
@@ -90,7 +90,7 @@ Double-click `start.bat` in the project root, or execute from PowerShell:
 .\start.bat
 ```
 This script automatically:
-1. Detects the backend virtual environment `backend\.venv`.
+1. Detects Python.
 2. Starts the FastAPI server on `http://127.0.0.1:8000`.
 3. Starts the Vite React dashboard on `http://localhost:5173`.
 4. Opens your browser to `http://localhost:5173`.
@@ -104,14 +104,11 @@ Open a terminal in the project directory:
 ```powershell
 cd backend
 
-# Create virtual environment (if not already created)
-py -3.13 -m venv .venv
-
-# Activate virtual environment
-.\.venv\Scripts\Activate.ps1
-
-# Install requirements
+# Install dependencies
 pip install -r requirements.txt
+
+# Train baseline ML classifier
+python training/train_classifier.py
 
 # Start the FastAPI server
 python main.py
@@ -140,7 +137,7 @@ The prompt injection classifier uses a lightweight TF-IDF Vectorizer and Logisti
 To train or re-train the model:
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe training/train_classifier.py
+python training/train_classifier.py
 ```
 
 ### Held-Out Evaluation Results:
@@ -159,15 +156,14 @@ Artifact Exported: backend/models/injection_classifier.json
 
 ## Automated Testing Suite
 
-Sentinel AI includes a full test suite verifying DLP detection, heuristic jailbreak analysis, prompt injection scoring, policy enforcement, blocked prompt isolation, output redaction, and metric computation.
+Leak-Sheild-AI includes a full test suite verifying DLP detection, heuristic jailbreak analysis, prompt injection scoring, policy enforcement, blocked prompt isolation, output redaction, and metric computation.
 
 Run tests with Pytest:
 ```powershell
-cd backend
-.\.venv\Scripts\pytest.exe -v
+pytest backend/tests -v
 ```
 
-All 28 tests will execute against an isolated temporary SQLite database:
+All 28 tests execute against an isolated temporary SQLite database:
 ```
 tests/test_audit_and_metrics.py ....
 tests/test_chat_gateway.py .....
@@ -176,14 +172,14 @@ tests/test_injection.py ....
 tests/test_policies_api.py ....
 tests/test_policy_engine.py ....
 tests/test_sensitive_data.py ......
-======================== 28 passed in 3.35s ========================
+======================== 28 passed ========================
 ```
 
 ---
 
 ## Local LLM Integration (Ollama)
 
-Sentinel AI works out of the box **without** an LLM for prompt scanning (`POST /scan`).
+Leak-Sheild-AI works out of the box **without** an LLM for prompt scanning (`POST /scan`).
 
 To enable end-to-end chat proxying with a local model:
 1. Download and install [Ollama](https://ollama.com/).
@@ -209,7 +205,7 @@ Returns actual availability status of database, classifier, and LLM:
   "status": "ok",
   "gateway": "operational",
   "version": "1.0.0",
-  "engine": "Sentinel-AI-Engine-v2.0",
+  "engine": "Leak-Sheild-AI-Engine-v2.0",
   "timestamp": "2026-10-15T09:00:00Z",
   "database": true,
   "classifier": true,
@@ -246,8 +242,7 @@ Inspects prompt for sensitive data, secrets, and adversarial directives without 
       "severity": "critical",
       "match_preview": "Signature pattern [sk-...]",
       "start": 16,
-      "end": 58,
-      "replacement": "[REDACTED_API_KEY]"
+      "end": 58
     }
   ],
   "redacted_prompt": "Here is my key: [REDACTED_API_KEY]",

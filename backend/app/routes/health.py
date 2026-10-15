@@ -43,7 +43,7 @@ def get_health_status():
         status=overall_status,
         gateway="operational" if db_ok else "degraded",
         version=settings.APP_VERSION,
-        engine="Sentinel-AI-Engine-v2.0",
+        engine="Leak-Sheild-AI-Engine-v2.0",
         timestamp=datetime.now(timezone.utc).isoformat(),
         database=db_ok,
         classifier=classifier_ok,

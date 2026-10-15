@@ -112,7 +112,7 @@ export async function checkHealth() {
     return {
       connected: false,
       latency,
-      error: err.message || 'Cannot reach Sentinel AI Gateway',
+      error: err.message || 'Cannot reach Leak-Sheild-AI Gateway',
       url: getApiBaseUrl(),
     };
   }
@@ -136,7 +136,7 @@ export async function scanPrompt(prompt) {
  * @param {string} prompt - The user prompt
  * @param {string} model - Optional model identifier
  */
-export async function submitChat(prompt, model = 'gpt-4o-security-proxy') {
+export async function submitChat(prompt, model = 'llama3.2:3b') {
   return await apiRequest('/chat', {
     method: 'POST',
     body: { prompt, model },
@@ -195,5 +195,50 @@ export async function updatePolicies(policies) {
 export async function getMetrics() {
   return await apiRequest('/metrics', {
     method: 'GET',
+  });
+}
+
+/**
+ * GET /events/search
+ * Natural language semantic search across security audit logs
+ * @param {string} query - The semantic query (e.g. "password leak", "cloud secrets")
+ * @param {number} minScore - Minimum cosine similarity threshold (0.0 to 1.0)
+ * @param {number} limit - Maximum events to return
+ */
+export async function searchEventsSemantic(query, minScore = 0.1, limit = 50) {
+  const endpoint = `/events/search?query=${encodeURIComponent(query)}&min_score=${minScore}&limit=${limit}`;
+  return await apiRequest(endpoint, {
+    method: 'GET',
+  });
+}
+
+/**
+ * POST /scan/image
+ * Scan an image provided as a Base64 string / Data URI for EXIF GPS leaks and secrets
+ * @param {string} imageBase64 - Base64 or Data URI string of the image
+ * @param {string} filename - Filename identifier
+ */
+export async function scanImage(imageBase64, filename = 'image.png') {
+  return await apiRequest('/scan/image', {
+    method: 'POST',
+    body: {
+      image_base64: imageBase64,
+      filename,
+    },
+  });
+}
+
+/**
+ * POST /scan/image/upload
+ * Scan an image file via multipart/form-data upload
+ * @param {File} file - Browser File object
+ */
+export async function scanImageFile(file) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
+  return await apiRequest('/scan/image/upload', {
+    method: 'POST',
+    body: formData,
   });
 }

@@ -83,7 +83,7 @@ def chat_proxy_endpoint(payload: ChatRequest, request: Request):
             request_id=req_id,
             latency_ms=latency_ms,
             response=None,
-            blocked_reason=f"Sentinel AI Interception: {policy_decision['recommendation']}",
+            blocked_reason=f"Leak-Sheild-AI Interception: {policy_decision['recommendation']}",
             findings=[Finding(**f) for f in combined_input_findings],
             timestamp=now_iso
         )

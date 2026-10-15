@@ -217,7 +217,7 @@ export function GatewayProvider({ children }) {
         setHasUnsavedPolicyChanges(false);
         addToast({
           title: 'Policies Reset',
-          message: 'Restored default Sentinel security thresholds on the server.',
+          message: 'Restored default Leak-Sheild-AI security thresholds on the server.',
           type: 'info',
         });
       }

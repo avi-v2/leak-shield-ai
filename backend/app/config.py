@@ -15,7 +15,7 @@ class Settings:
     """Application settings loaded from environment variables."""
 
     APP_ENV: str = os.getenv("APP_ENV", "development")
-    APP_TITLE: str = "Sentinel AI Security Gateway"
+    APP_TITLE: str = "Leak-Sheild-AI Security Gateway"
     APP_VERSION: str = "1.0.0"
 
     # SQLite Database path
