@@ -19,7 +19,7 @@ import { ThreatDetailModal } from '../components/threats/ThreatDetailModal';
 import { TableSkeleton } from '../components/common/Skeleton';
 
 export function ThreatMonitor() {
-  const { events, eventsLoading, loadEvents, isUsingSimulatedData, connectionStatus } = useGateway();
+  const { events, eventsLoading, loadEvents, connectionStatus } = useGateway();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState('ALL');
@@ -98,9 +98,6 @@ export function ThreatMonitor() {
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-slate-100">Live Threat Monitor</h2>
             <Badge variant="cyan" size="sm">{filteredEvents.length} Incidents</Badge>
-            {isUsingSimulatedData && (
-              <Badge variant="simulated" size="xs">SIMULATED DATA</Badge>
-            )}
           </div>
           <p className="text-xs text-slate-400 mt-1">
             Real-time feed of intercepted prompt injection attacks, credential exfiltration, and sensitive data leaks.

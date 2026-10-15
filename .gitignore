@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+backend/.venv/
+.venv/
+venv/
+env/
+
+# Build artifacts
+dist/
+build/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+sentinel.db
+backend/sentinel.db
+
+# Environment variables
+.env
+backend/.env
+
+# OS files
+.DS_Store
+Thumbs.db

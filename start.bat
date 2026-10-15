@@ -4,8 +4,13 @@ echo   Launching Sentinel AI — Security Gateway & Dashboard
 echo =======================================================
 echo.
 
-echo Starting Python FastAPI backend server on port 8000...
-start "Sentinel AI - FastAPI Backend" cmd /k "python backend/main.py"
+set PYTHON_CMD=python
+if exist "backend\.venv\Scripts\python.exe" (
+    set PYTHON_CMD=backend\.venv\Scripts\python.exe
+)
+
+echo Starting Python FastAPI backend server on port 8000 using %PYTHON_CMD%...
+start "Sentinel AI - FastAPI Backend" cmd /k "%PYTHON_CMD% backend/main.py"
 
 timeout /t 2 /nobreak >nul
 

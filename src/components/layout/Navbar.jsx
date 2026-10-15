@@ -5,8 +5,7 @@ import { useGateway } from '../../context/GatewayContext';
 import { Badge } from '../common/Badge';
 
 export function Navbar({ onMenuClick }) {
-  const location = useLocation();
-  const { connectionStatus, latency, pingBackend, isUsingSimulatedData } = useGateway();
+  const { connectionStatus, latency, pingBackend } = useGateway();
 
   const getPageTitle = (pathname) => {
     switch (pathname) {
@@ -48,15 +47,8 @@ export function Navbar({ onMenuClick }) {
         </div>
       </div>
 
-      {/* Right: Gateway Status, Ping Pill, Demo warning, Action */}
+      {/* Right: Gateway Status, Ping Pill, Action */}
       <div className="flex items-center gap-3">
-        {/* Simulated Demo Warning (if active) */}
-        {isUsingSimulatedData && (
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
-            <span>Simulated Demo Mode</span>
-          </div>
-        )}
 
         {/* Backend Connectivity Pill */}
         <button

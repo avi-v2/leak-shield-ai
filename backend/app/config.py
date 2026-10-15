@@ -40,7 +40,7 @@ class Settings:
     # Machine Learning Model Artifact
     MODEL_ARTIFACT_PATH: str = os.getenv(
         "MODEL_ARTIFACT_PATH",
-        str(BACKEND_DIR / "models" / "injection_classifier.joblib")
+        str(BACKEND_DIR / "models" / "injection_classifier.json")
     )
 
     # Prompt bounds
