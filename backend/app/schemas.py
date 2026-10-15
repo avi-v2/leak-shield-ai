@@ -15,6 +15,8 @@ class Finding(BaseModel):
     match_preview: Optional[str] = Field(None, description="Redacted preview of the pattern match, never raw secret")
     start: Optional[int] = Field(None, description="Start character index in original text")
     end: Optional[int] = Field(None, description="End character index in original text")
+    source_location: Optional[str] = Field(None, description="Source location (e.g. Page 1, Row 4, OCR Text, Metadata)")
+    origin: Optional[str] = Field("prompt_text", description="Origin medium: document_text, ocr, image_metadata, or prompt_text")
 
 class ScanRequest(BaseModel):
     """Payload for POST /scan"""
@@ -113,6 +115,26 @@ class ImageScanRequest(BaseModel):
     image_base64: str = Field(..., description="Base64 encoded image data or data URI")
     filename: Optional[str] = Field("uploaded_image.png", description="Original image filename")
 
+class FileScanResponse(BaseModel):
+    """Response returned by POST /scan/file"""
+    request_id: str
+    action: Literal["ALLOW", "REDACT", "BLOCK"]
+    risk_level: Literal["low", "medium", "high", "critical"]
+    filename: str
+    detected_file_type: str
+    file_size_bytes: int
+    extraction_status: Literal["SUCCESS", "PARTIAL", "FAILED", "UNSUPPORTED", "OVERSIZED"]
+    ocr_status: Optional[str] = None
+    total_pages_or_rows: Optional[int] = None
+    findings: List[Finding]
+    finding_count: int
+    scanned_components: List[str] = []
+    sanitized_preview: Optional[str] = None
+    extracted_text_preview: Optional[str] = None
+    recommendation: str
+    explanation: Optional[str] = None
+    scanned_at: str
+
 class ImageScanResponse(BaseModel):
     """Response schema for image privacy and sensitive data scan."""
     request_id: str
@@ -124,6 +146,10 @@ class ImageScanResponse(BaseModel):
     sanitized_image_base64: Optional[str] = None
     scanned_at: str
     explanation: Optional[str] = None
+    ocr_status: Optional[str] = None
+    ocr_text_preview: Optional[str] = None
+    finding_count: int = 0
+    scanned_components: List[str] = []
 
 class MetricsResponse(BaseModel):
     """Response schema for GET /metrics."""

@@ -15,7 +15,7 @@ class Settings:
     """Application settings loaded from environment variables."""
 
     APP_ENV: str = os.getenv("APP_ENV", "development")
-    APP_TITLE: str = "Leak-Sheild-AI Security Gateway"
+    APP_TITLE: str = "Leak-Shield-AI Security Gateway"
     APP_VERSION: str = "1.0.0"
 
     # SQLite Database path
@@ -45,5 +45,13 @@ class Settings:
 
     # Prompt bounds
     MAX_PROMPT_LENGTH: int = int(os.getenv("MAX_PROMPT_LENGTH", "20000"))
+
+    # File and Document Scan Configuration
+    MAX_FILE_SIZE_BYTES: int = int(os.getenv("MAX_FILE_SIZE_BYTES", str(15 * 1024 * 1024)))  # 15 MB
+    ALLOWED_DOCUMENT_EXTENSIONS: List[str] = [".txt", ".md", ".csv", ".json", ".pdf", ".docx"]
+    ALLOWED_IMAGE_EXTENSIONS: List[str] = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"]
+
+    # OCR Configuration
+    TESSERACT_CMD: str = os.getenv("TESSERACT_CMD", "")
 
 settings = Settings()

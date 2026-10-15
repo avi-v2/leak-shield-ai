@@ -1,6 +1,6 @@
 @echo off
 echo =======================================================
-echo   Launching Leak-Sheild-AI — Security Gateway & Dashboard
+echo   Launching Leak-Shield-AI — Security Gateway & Dashboard
 echo =======================================================
 echo.
 
@@ -10,12 +10,12 @@ if exist "backend\.venv\Scripts\python.exe" (
 )
 
 echo Starting Python FastAPI backend server on port 8000 using %PYTHON_CMD%...
-start "Leak-Sheild-AI - FastAPI Backend" cmd /k "%PYTHON_CMD% backend/main.py"
+start "Leak-Shield-AI - FastAPI Backend" cmd /k "%PYTHON_CMD% backend/main.py"
 
 timeout /t 2 /nobreak >nul
 
 echo Starting Vite frontend development server on port 5173...
-start "Leak-Sheild-AI - React Dashboard" cmd /k "npm run dev"
+start "Leak-Shield-AI - React Dashboard" cmd /k "npm run dev"
 
 timeout /t 3 /nobreak >nul
 

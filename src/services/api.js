@@ -242,3 +242,18 @@ export async function scanImageFile(file) {
     body: formData,
   });
 }
+
+/**
+ * POST /scan/file
+ * Scan an uploaded document (.pdf, .docx, .csv, .json, .txt, .md) for sensitive data and injection attacks
+ * @param {File} file - Browser File object
+ */
+export async function scanDocumentFile(file) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
+  return await apiRequest('/scan/file', {
+    method: 'POST',
+    body: formData,
+  }, 30000);
+}

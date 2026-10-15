@@ -19,7 +19,7 @@ def test_blocked_prompt_never_reaches_llm(client):
         data = response.json()
         assert data["decision"] == "BLOCK"
         assert data["response"] is None
-        assert "Leak-Sheild-AI Interception" in data["blocked_reason"]
+        assert "Leak-Shield-AI Interception" in data["blocked_reason"]
 
         # CRITICAL: Verify upstream LLM function was never called
         mock_call_ollama.assert_not_called()

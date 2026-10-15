@@ -20,7 +20,7 @@ from fastapi import APIRouter, Request, HTTPException
 from app.schemas import ChatRequest, ChatResponse, Finding
 from app.database import load_policies
 from app.security.sensitive_data import scan_sensitive_data
-from app.security.injection_detector import detect_prompt_injection
+from app.security.injection_detector import detect_prompt_injection, extract_injection_indicators
 from app.security.policy_engine import evaluate_security_policy
 from app.security.output_scanner import scan_model_output
 from app.services.llm_service import call_ollama
@@ -42,8 +42,9 @@ def chat_proxy_endpoint(payload: ChatRequest, request: Request):
 
     # Step 1 & 2: Input Scanning
     sensitive_findings, redacted_text = scan_sensitive_data(payload.prompt, policy)
-    injection_findings, injection_risk, _, _ = detect_prompt_injection(payload.prompt, policy)
+    injection_findings, injection_risk, _, clf_score = detect_prompt_injection(payload.prompt, policy)
     combined_input_findings = sensitive_findings + injection_findings
+    indicators = extract_injection_indicators(payload.prompt, injection_findings, clf_score)
 
     # Step 3: Policy Evaluation
     policy_decision = evaluate_security_policy(
@@ -75,7 +76,11 @@ def chat_proxy_endpoint(payload: ChatRequest, request: Request):
             client_ip=client_ip,
             user_agent=user_agent,
             sanitized_preview=redacted_text,
-            is_output_scan=False
+            is_output_scan=False,
+            input_type="prompt",
+            finding_count=len(combined_input_findings),
+            indicators=indicators,
+            findings=combined_input_findings
         )
 
         return ChatResponse(
@@ -83,7 +88,7 @@ def chat_proxy_endpoint(payload: ChatRequest, request: Request):
             request_id=req_id,
             latency_ms=latency_ms,
             response=None,
-            blocked_reason=f"Leak-Sheild-AI Interception: {policy_decision['recommendation']}",
+            blocked_reason=f"Leak-Shield-AI Interception: {policy_decision['recommendation']}",
             findings=[Finding(**f) for f in combined_input_findings],
             timestamp=now_iso
         )
@@ -119,7 +124,11 @@ def chat_proxy_endpoint(payload: ChatRequest, request: Request):
             client_ip=client_ip,
             user_agent=user_agent,
             sanitized_preview=redacted_text,
-            is_output_scan=bool(output_findings)
+            is_output_scan=bool(output_findings),
+            input_type="prompt",
+            finding_count=len(final_findings),
+            indicators=indicators,
+            findings=final_findings
         )
     else:
         # Record clean traffic record for metric consistency
@@ -136,7 +145,11 @@ def chat_proxy_endpoint(payload: ChatRequest, request: Request):
             client_ip=client_ip,
             user_agent=user_agent,
             sanitized_preview=redacted_text,
-            is_output_scan=False
+            is_output_scan=False,
+            input_type="prompt",
+            finding_count=0,
+            indicators=[],
+            findings=[]
         )
 
     # Step 9: Return Real Response

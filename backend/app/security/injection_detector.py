@@ -89,6 +89,8 @@ def detect_prompt_injection(
         match = pattern.search(text)
         if match:
             start, end = match.span()
+            matched_raw = match.group(0)
+            norm_phrase = re.sub(r'\s+', ' ', matched_raw.strip().lower())
             findings.append({
                 "type": rule_type,
                 "category": cat,
@@ -96,7 +98,8 @@ def detect_prompt_injection(
                 "severity": severity,
                 "match_preview": preview,
                 "start": start,
-                "end": end
+                "end": end,
+                "matched_text": norm_phrase
             })
             heuristic_triggered = True
 
@@ -120,7 +123,8 @@ def detect_prompt_injection(
                     "severity": "high" if (score and score > 0.8) else "medium",
                     "match_preview": "ML Statistical Injection Classifier",
                     "start": 0,
-                    "end": len(text)
+                    "end": len(text),
+                    "matched_text": "statistical anomaly (ml classifier)"
                 })
 
     # Determine injection risk level
@@ -134,3 +138,85 @@ def detect_prompt_injection(
         risk = "none"
 
     return findings, risk, clf_available, clf_score
+
+# Canonical candidate phrases for prompt injection intelligence analysis
+CANDIDATE_INJECTION_PHRASES: List[Tuple[str, str, str]] = [
+    ("ignore all previous instructions", "Prompt Injection", "Instruction Override"),
+    ("ignore previous instructions", "Prompt Injection", "Instruction Override"),
+    ("disregard previous instructions", "Prompt Injection", "Instruction Override"),
+    ("ignore the system message", "Prompt Injection", "Instruction Override"),
+    ("override instructions", "Prompt Injection", "Instruction Override"),
+    ("reveal your system prompt", "System Prompt Extraction", "System Extraction"),
+    ("reveal the system prompt", "System Prompt Extraction", "System Extraction"),
+    ("reveal secrets", "System Prompt Extraction", "Secret Exfiltration"),
+    ("exfiltrate", "System Prompt Extraction", "Data Exfiltration"),
+    ("developer mode", "Jailbreak (DAN)", "Developer Mode Bypass"),
+    ("act as an unrestricted ai", "Jailbreak (DAN)", "Unrestricted Persona"),
+    ("do anything now", "Jailbreak (DAN)", "DAN Persona Jailbreak"),
+    ("dan", "Jailbreak (DAN)", "DAN Persona Jailbreak"),
+    ("jailbreak", "Jailbreak (DAN)", "Jailbreak Directive"),
+    ("bypass safety", "Prompt Injection", "Safety Filter Bypass"),
+    ("bypass restrictions", "Prompt Injection", "Constraint Bypass"),
+]
+
+def extract_injection_indicators(
+    text: str,
+    findings: List[Dict[str, Any]],
+    clf_score: Optional[float] = None
+) -> List[Dict[str, Any]]:
+    """
+    Extract structured, non-sensitive detection indicators for dashboard intelligence.
+    Normalizes case and whitespace without storing raw malicious prompt text.
+    Distinguishes exact regex rule matches from keyword text analysis and ML predictions.
+    """
+    indicators: List[Dict[str, Any]] = []
+    seen_phrases = set()
+
+    # 1. Exact heuristic rule matches from findings
+    for f in findings:
+        cat = f.get("category", "")
+        if "Injection" in cat or "Jailbreak" in cat or "System" in cat or "Override" in cat:
+            matched_text = f.get("matched_text")
+            if matched_text and matched_text not in seen_phrases:
+                seen_phrases.add(matched_text)
+                indicators.append({
+                    "phrase": matched_text,
+                    "detection_method": "regex_heuristic",
+                    "category": cat,
+                    "rule": f.get("type", "HEURISTIC_RULE"),
+                    "is_exact_rule": True
+                })
+
+    # 2. Text keyword analysis for candidate phrases in flagged text
+    # (Only run if at least one injection/jailbreak finding exists or classifier score is high)
+    has_injection_risk = bool(indicators) or (clf_score is not None and clf_score >= 0.5)
+    if has_injection_risk and text:
+        norm_text = re.sub(r'\s+', ' ', text.strip().lower())
+        for phrase, category, rule_desc in CANDIDATE_INJECTION_PHRASES:
+            # Check whole phrase presence with word boundaries where feasible
+            pattern = r'\b' + re.escape(phrase) + r'\b'
+            if re.search(pattern, norm_text) and phrase not in seen_phrases:
+                seen_phrases.add(phrase)
+                indicators.append({
+                    "phrase": phrase,
+                    "detection_method": "keyword_analysis",
+                    "category": category,
+                    "rule": f"KEYWORD_{rule_desc.upper().replace(' ', '_')}",
+                    "is_exact_rule": False
+                })
+
+    # 3. Statistical ML classifier anomaly
+    if clf_score is not None and clf_score >= 0.6:
+        ml_phrase = "statistical anomaly (ml classifier)"
+        if ml_phrase not in seen_phrases:
+            seen_phrases.add(ml_phrase)
+            indicators.append({
+                "phrase": ml_phrase,
+                "detection_method": "ml_classifier",
+                "category": "Prompt Injection",
+                "rule": "RULE_ML_INJECTION_CLASSIFIER",
+                "is_exact_rule": False
+            })
+
+    return indicators
+

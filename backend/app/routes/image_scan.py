@@ -1,5 +1,5 @@
 """
-Image Scan Route for Leak-Sheild-AI Security Gateway.
+Image Scan Route for Leak-Shield-AI Security Gateway.
 
 Provides POST /scan/image to evaluate images for:
 - EXIF GPS coordinates & location leaks
@@ -12,7 +12,7 @@ import time
 import base64
 import uuid
 from typing import Optional
-from fastapi import APIRouter, File, UploadFile, HTTPException, Body
+from fastapi import APIRouter, File, UploadFile, HTTPException, Body, Request
 from app.schemas import ImageScanRequest, ImageScanResponse
 from app.security.image_scanner import scan_image_bytes
 from app.services.audit_service import record_audit_event
@@ -20,7 +20,7 @@ from app.services.audit_service import record_audit_event
 router = APIRouter()
 
 @router.post("/scan/image", response_model=ImageScanResponse)
-async def scan_image_json_endpoint(payload: ImageScanRequest):
+async def scan_image_json_endpoint(payload: ImageScanRequest, request: Request = None):
     """
     POST /scan/image — Scan an image provided as a base64 encoded string or Data URI.
     Detects EXIF GPS leaks, device fingerprinting, and embedded secrets.
@@ -57,13 +57,18 @@ async def scan_image_json_endpoint(payload: ImageScanRequest):
         matched_rules=matched_rules,
         latency_ms=latency_ms,
         sanitized_preview=preview,
-        is_output_scan=False
+        is_output_scan=False,
+        input_type="image",
+        finding_count=len(response.findings),
+        findings=[f.model_dump() for f in response.findings],
+        file_type=response.metadata.format,
+        ocr_status=response.ocr_status
     )
 
     return response
 
 @router.post("/scan/image/upload", response_model=ImageScanResponse)
-async def scan_image_upload_endpoint(file: UploadFile = File(...)):
+async def scan_image_upload_endpoint(file: UploadFile = File(...), request: Request = None):
     """
     POST /scan/image/upload — Scan an image file uploaded as multipart/form-data.
     """
@@ -93,7 +98,12 @@ async def scan_image_upload_endpoint(file: UploadFile = File(...)):
         matched_rules=matched_rules,
         latency_ms=latency_ms,
         sanitized_preview=preview,
-        is_output_scan=False
+        is_output_scan=False,
+        input_type="image",
+        finding_count=len(response.findings),
+        findings=[f.model_dump() for f in response.findings],
+        file_type=response.metadata.format,
+        ocr_status=response.ocr_status
     )
 
     return response

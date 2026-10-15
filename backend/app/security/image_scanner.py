@@ -146,11 +146,16 @@ def scan_image_bytes(
     request_id: Optional[str] = None
 ) -> ImageScanResponse:
     """
-    Main scanner function: Inspects image bytes for sensitive data, EXIF leaks,
-    and metadata risks.
+    Main scanner function: Delegates to the comprehensive image content and OCR engine.
     """
-    req_id = request_id or f"img_{uuid.uuid4().hex[:8]}"
-    file_size = len(image_bytes)
+    from app.security.image_content_scanner import scan_image_content_and_metadata
+    return scan_image_content_and_metadata(image_bytes, filename=filename, request_id=request_id)
+
+def _legacy_scan_image_bytes(
+    image_bytes: bytes,
+    filename: str = "image.png",
+    request_id: Optional[str] = None
+) -> ImageScanResponse:
 
     if not image_bytes:
         return ImageScanResponse(

@@ -328,11 +328,11 @@ export function Settings() {
             <div className="space-y-2 font-mono text-xs">
               <div className="flex justify-between py-1 border-b border-[#1E293B]">
                 <span className="text-slate-400">Application</span>
-                <span className="text-slate-200">Leak-Sheild-AI Gateway</span>
+                <span className="text-slate-200">Leak-Shield-AI Gateway</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#1E293B]">
-                <span className="text-slate-400">Frontend Release</span>
-                <span className="text-cyan-400">v1.4.2-hackathon</span>
+                <span className="text-slate-400">Release</span>
+                <span className="text-cyan-400">v1.0.0</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#1E293B]">
                 <span className="text-slate-400">Core Framework</span>

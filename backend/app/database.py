@@ -62,9 +62,36 @@ def init_db(custom_path: Optional[str] = None) -> None:
                 client_ip TEXT NOT NULL DEFAULT '127.0.0.1',
                 user_agent TEXT NOT NULL DEFAULT 'Unknown',
                 sanitized_preview TEXT NOT NULL,
-                is_output_scan INTEGER NOT NULL DEFAULT 0
+                is_output_scan INTEGER NOT NULL DEFAULT 0,
+                input_type TEXT NOT NULL DEFAULT 'prompt',
+                finding_count INTEGER NOT NULL DEFAULT 0,
+                indicators_json TEXT NOT NULL DEFAULT '[]',
+                findings_json TEXT NOT NULL DEFAULT '[]',
+                file_type TEXT DEFAULT NULL,
+                ocr_status TEXT DEFAULT NULL
             )
         """)
+
+        # Dynamically add any missing columns for existing databases
+        cursor.execute("PRAGMA table_info(events)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        columns_to_add = [
+            ("input_type", "TEXT NOT NULL DEFAULT 'prompt'"),
+            ("finding_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("indicators_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ("findings_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ("file_type", "TEXT DEFAULT NULL"),
+            ("ocr_status", "TEXT DEFAULT NULL"),
+        ]
+        for col_name, col_type in columns_to_add:
+            if col_name not in existing_cols:
+                cursor.execute(f"ALTER TABLE events ADD COLUMN {col_name} {col_type}")
+
+        # Add indexes for high-performance dashboard aggregation queries
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_action ON events(action_taken)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_threat_category ON events(threat_category)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_input_type ON events(input_type)")
 
         # Policies table (key-value configuration store)
         cursor.execute("""
