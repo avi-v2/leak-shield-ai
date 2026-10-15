@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 
 import docx
-import pymupdf
+import pypdf
 
 from app.security.sensitive_data import scan_sensitive_data
 from app.security.injection_detector import detect_prompt_injection
