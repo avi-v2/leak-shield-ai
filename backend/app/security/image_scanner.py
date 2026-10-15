@@ -257,14 +257,20 @@ def scan_image_bytes(
     for block in extracted_text_blocks:
         block_findings, _ = scan_sensitive_data(block)
         for f in block_findings:
+            f_type = f.get("type", "UNKNOWN_TYPE")
+            f_cat = f.get("category", "Sensitive Data")
+            f_desc = f.get("description", "Exposed sensitive string")
+            f_sev = f.get("severity", "medium")
+            f_preview = f.get("match_preview")
+
             # Avoid duplicate rules
-            if not any(existing.type == f.type and existing.match_preview == f.match_preview for existing in findings):
+            if not any(existing.type == f"RULE_IMAGE_EMBEDDED_{f_type}" and existing.match_preview == f_preview for existing in findings):
                 findings.append(Finding(
-                    type=f"RULE_IMAGE_EMBEDDED_{f.type}",
-                    category=f"Embedded {f.category}",
-                    description=f"Sensitive secret discovered inside image metadata/text chunk: {f.description}",
-                    severity=f.severity,
-                    match_preview=f.match_preview
+                    type=f"RULE_IMAGE_EMBEDDED_{f_type}",
+                    category=f"Embedded {f_cat}",
+                    description=f"Sensitive secret discovered inside image metadata/text chunk: {f_desc}",
+                    severity=f_sev,
+                    match_preview=f_preview
                 ))
 
     # 4. Generate Sanitized Clean Image (Strip all EXIF and metadata)

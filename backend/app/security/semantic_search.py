@@ -13,24 +13,40 @@ from typing import List, Dict, Any, Tuple
 # Domain-specific cybersecurity semantic concept mapping
 CYBERSECURITY_THESAURUS: Dict[str, List[str]] = {
     "credential": [
-        "password", "passwd", "pwd", "secret", "key", "token", "api_key",
-        "apikey", "bearer", "auth", "authorization", "exfiltration", "leak", "sk", "akia", "ghp"
+        "password", "passwd", "pwd", "secret", "key", "token", "api", "apikey", "api_key",
+        "bearer", "auth", "authorization", "exfiltration", "leak", "sk", "akia", "ghp", "exposure"
+    ],
+    "secret": [
+        "credential", "key", "token", "password", "api", "apikey", "api_key", "sk", "akia",
+        "auth", "exfiltration", "leak", "exposure", "cloud", "aws"
+    ],
+    "key": [
+        "api", "apikey", "api_key", "secret", "token", "credential", "sk", "akia", "bearer", "auth", "cloud"
     ],
     "password": [
-        "credential", "secret", "passwd", "pwd", "hash", "login", "admin", "db_pass"
+        "credential", "secret", "passwd", "pwd", "hash", "login", "admin", "db_pass", "auth"
     ],
     "token": [
-        "jwt", "bearer", "oauth", "api_key", "secret", "auth", "session", "github", "slack"
+        "jwt", "bearer", "oauth", "api", "key", "apikey", "secret", "auth", "session", "github", "slack", "credential", "cloud"
+    ],
+    "cloud": [
+        "aws", "azure", "gcp", "akia", "s3", "bucket", "token", "key", "secret", "credential"
+    ],
+    "aws": [
+        "cloud", "akia", "s3", "secret", "key", "token", "credential"
     ],
     "injection": [
         "jailbreak", "override", "bypass", "dan", "persona", "prompt", "adversarial",
         "delimiter", "system", "verbatim", "instruction", "manipulation", "stan", "developer"
     ],
     "jailbreak": [
-        "injection", "dan", "unrestricted", "persona", "bypass", "developer_mode", "aim", "stan"
+        "injection", "dan", "unrestricted", "persona", "bypass", "developer_mode", "aim", "stan", "prompt"
+    ],
+    "dan": [
+        "jailbreak", "injection", "persona", "bypass", "unrestricted", "prompt"
     ],
     "override": [
-        "disregard", "ignore", "forget", "bypass", "instruction", "guideline", "directive"
+        "disregard", "ignore", "forget", "bypass", "instruction", "guideline", "directive", "injection"
     ],
     "identity": [
         "pii", "personal", "aadhaar", "pan", "ssn", "social", "security", "citizen",
@@ -45,6 +61,9 @@ CYBERSECURITY_THESAURUS: Dict[str, List[str]] = {
     "card": [
         "credit", "debit", "pci", "payment", "financial", "visa", "mastercard"
     ],
+    "pci": [
+        "card", "credit", "debit", "financial", "payment"
+    ],
     "email": [
         "mail", "address", "inbox", "contact", "support", "user", "pii"
     ],
@@ -52,7 +71,16 @@ CYBERSECURITY_THESAURUS: Dict[str, List[str]] = {
         "telephone", "mobile", "number", "hotline", "contact", "sms"
     ],
     "exfiltration": [
-        "leak", "egress", "theft", "unauthorized", "extract", "dump", "disclosure"
+        "leak", "exposure", "egress", "theft", "unauthorized", "extract", "dump", "disclosure"
+    ],
+    "leak": [
+        "exfiltration", "exposure", "theft", "disclosure", "secret", "credential", "breach"
+    ],
+    "theft": [
+        "exfiltration", "leak", "exposure", "unauthorized", "secret", "credential"
+    ],
+    "exposure": [
+        "leak", "exfiltration", "theft", "disclosure", "secret", "credential", "breach"
     ]
 }
 
@@ -60,14 +88,24 @@ def tokenize(text: str) -> List[str]:
     """Tokenize and normalize text into clean alphabetic/numeric words."""
     if not text:
         return []
-    return re.findall(r'\b[a-z0-9_]{2,}\b', text.lower())
+    raw = re.findall(r'\b[a-z0-9_]{2,}\b', text.lower())
+    tokens = []
+    for t in raw:
+        tokens.append(t)
+        if '_' in t:
+            for sub in t.split('_'):
+                if len(sub) >= 2 and sub not in tokens:
+                    tokens.append(sub)
+    return tokens
 
 def expand_query_terms(tokens: List[str]) -> List[str]:
     """Expand query terms with domain synonyms to capture semantic intent."""
     expanded = list(tokens)
     for tok in tokens:
         if tok in CYBERSECURITY_THESAURUS:
-            expanded.extend(CYBERSECURITY_THESAURUS[tok])
+            for syn in CYBERSECURITY_THESAURUS[tok]:
+                if syn not in expanded:
+                    expanded.append(syn)
     return expanded
 
 class SemanticSearchEngine:
@@ -164,11 +202,18 @@ class SemanticSearchEngine:
             doc_norm = math.sqrt(doc_norm_sq) if doc_norm_sq > 0 else 1.0
             cosine_sim = dot_product / (query_norm * doc_norm) if (query_norm * doc_norm) > 0 else 0.0
 
-            # Direct keyword bonus if exact query tokens appear in category or rules
+            # Direct keyword bonus if exact query tokens appear in category or rules or summary
             event_text_lower = cls._create_event_document(event).lower()
             exact_hits = sum(1 for qt in raw_query_tokens if qt in event_text_lower)
             if exact_hits > 0:
-                cosine_sim = min(1.0, cosine_sim + (exact_hits / len(raw_query_tokens)) * 0.25)
+                cosine_sim = min(1.0, cosine_sim + (exact_hits / len(raw_query_tokens)) * 0.35)
+
+            # Semantic synonym bonus if expanded synonyms match document tokens
+            doc_tok_set = set(doc_tokens)
+            synonym_hits = sum(1 for eq in expanded_query_tokens if eq in doc_tok_set)
+            if synonym_hits > 0:
+                boost = min(0.35, (synonym_hits / len(expanded_query_tokens)) * 0.5)
+                cosine_sim = min(1.0, max(cosine_sim, 0.15 + boost))
 
             if cosine_sim >= min_score:
                 event_copy = dict(event)

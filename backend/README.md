@@ -9,8 +9,11 @@ This is the Python FastAPI backend for the **Leak-Sheild-AI** Data Leakage Secur
 ## Endpoints
 - `GET /health` — Real-time component health status (API, SQLite, ML Classifier, Ollama)
 - `POST /scan` — Static prompt inspection, sensitive data detection, and injection risk analysis
+- `POST /scan/image` — Multimodal image privacy scanner (EXIF GPS location leak, camera fingerprinting, embedded secrets, and clean image sanitization)
+- `POST /scan/image/upload` — Multipart image file upload scanner
 - `POST /chat` — AI security proxy with automated input & output DLP scanning
 - `GET /events` — Forensic security incident audit store from SQLite
+- `GET /events/search` — Natural language vector similarity semantic search across security audit logs
 - `DELETE /events` — Clear audit logs upon user confirmation
 - `GET /policies` — Retrieve server-side security policies
 - `PUT /policies` — Update server-side policies with mandatory credential protection

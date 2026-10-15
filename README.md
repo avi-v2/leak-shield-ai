@@ -58,12 +58,15 @@ It acts as a secure reverse proxy between client applications and Large Language
 - **`app/routes/`**:
   - `health.py`: Live component health checking (API, SQLite, ML model, Ollama).
   - `scan.py`: Standalone DLP and prompt injection scanning (runs without LLM).
+  - `image_scan.py`: Multimodal image scanner detecting EXIF GPS leaks, hardware metadata, embedded secrets, and clean image sanitization.
   - `chat.py`: End-to-end proxy pipeline (input scan -> policy -> LLM -> output scan -> audit).
-  - `events.py`: Audit log retrieval and deletion with pagination.
+  - `events.py`: Audit log retrieval, deletion, and vector-space semantic search (`/events/search`).
   - `policies.py`: Server-side policy management with mandatory protection enforcement.
   - `metrics.py`: Real-time telemetry computed directly from SQLite events.
 - **`app/security/`**:
   - `sensitive_data.py`: Modular regex rules and contextual validators (API keys, SSN, PAN, Aadhaar, Cards, Passwords, Emails, Phone numbers).
+  - `image_scanner.py`: Pillow-powered EXIF GPS parser, device fingerprinting engine, and metadata stripper.
+  - `semantic_search.py`: Vector-space TF-IDF cosine similarity search with domain cybersecurity thesaurus expansion.
   - `injection_detector.py`: Heuristic override/jailbreak detection combined with ML scoring.
   - `classifier.py`: Production inference interface loading TF-IDF + Logistic Regression model safely.
   - `policy_engine.py`: Central policy enforcement with conservative defaults.
@@ -156,23 +159,25 @@ Artifact Exported: backend/models/injection_classifier.json
 
 ## Automated Testing Suite
 
-Leak-Sheild-AI includes a full test suite verifying DLP detection, heuristic jailbreak analysis, prompt injection scoring, policy enforcement, blocked prompt isolation, output redaction, and metric computation.
+Leak-Sheild-AI includes a comprehensive test suite verifying DLP detection, heuristic jailbreak analysis, prompt injection scoring, EXIF GPS leak detection, image metadata sanitization, vector-space semantic search, policy enforcement, blocked prompt isolation, output redaction, and metric computation.
 
 Run tests with Pytest:
 ```powershell
 pytest backend/tests -v
 ```
 
-All 28 tests execute against an isolated temporary SQLite database:
+All 37 tests execute against an isolated temporary SQLite database:
 ```
 tests/test_audit_and_metrics.py ....
 tests/test_chat_gateway.py .....
 tests/test_health.py .
+tests/test_image_scanner.py ......
 tests/test_injection.py ....
 tests/test_policies_api.py ....
 tests/test_policy_engine.py ....
+tests/test_semantic_search.py ...
 tests/test_sensitive_data.py ......
-======================== 28 passed ========================
+======================= 37 passed =======================
 ```
 
 ---
