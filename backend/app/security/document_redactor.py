@@ -19,7 +19,6 @@ from typing import Dict, Any, List, Tuple, Optional
 
 import docx
 import pypdf
-import pymupdf
 
 from app.security.sensitive_data import scan_sensitive_data
 from app.security.injection_detector import detect_prompt_injection
@@ -194,7 +193,7 @@ def redact_document_bytes(
             sanitized_preview = (sample_joined[:157] + "...") if len(sample_joined) > 160 else sample_joined
 
         elif ext == ".pdf":
-            pdf_doc = pymupdf.open(stream=file_bytes, filetype="pdf")
+            pdf_doc = pypdf.open(stream=file_bytes, filetype="pdf")
             if pdf_doc.is_encrypted:
                 return {
                     "success": False,
@@ -357,7 +356,7 @@ def redact_document_bytes(
             verification_details["structural_integrity"] = True
             verification_details["checks_performed"].append("DOCX package reopened and paragraph/table trees verified.")
         elif ext == ".pdf":
-            re_pdf = pymupdf.open(stream=sanitized_bytes, filetype="pdf")
+            re_pdf = pypdf.open(stream=sanitized_bytes, filetype="pdf")
             p_texts = [page.get_text() for page in re_pdf]
             reopened_text_for_scan = " ".join(p_texts)
             verification_details["structural_integrity"] = True
